@@ -73,7 +73,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _timer.Stop();
-            SetConnectionStatus("Нет подключения к БД", "Database disconnected", "Veritabanı bağlantısı yok", "#DC2626");
+            SetConnectionStatus("Ошибка чтения журнала", "Journal read error", "Günlük okuma hatası", "#DC2626");
             LastUpdateText.Text = ex.Message;
         }
     }
@@ -113,14 +113,23 @@ public partial class MainWindow : Window
         if (!string.IsNullOrWhiteSpace(search))
         {
             query = query.Where(x =>
-                x.InitObjectName.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-                x.InitObjectId0.ToString().Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                x.InitObjectId1.ToString().Contains(search, StringComparison.OrdinalIgnoreCase));
+                x.FullName.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                x.CardNumber.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                x.Location.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                x.Direction.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                x.ReaderName.Contains(search, StringComparison.CurrentCultureIgnoreCase));
         }
+
+        query = _config.DisplayMode switch
+        {
+            "post" => query.Where(x => x.Location.Equals("Проходная", StringComparison.CurrentCultureIgnoreCase)),
+            "canteen" => query.Where(x => x.Location.Equals("Столовая", StringComparison.CurrentCultureIgnoreCase)),
+            _ => query
+        };
 
         var result = query.OrderByDescending(x => x.RealTime).ToList();
         EmployeeCards.ItemsSource = result;
-        EventCountText.Text = $"{T("Событий", "Events", "Olaylar")}: {result.Count}";
+        EventCountText.Text = $"{T("Проходов", "Access events", "Geçişler")}: {result.Count}";
     }
 
     private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilters();
