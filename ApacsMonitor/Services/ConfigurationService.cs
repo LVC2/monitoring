@@ -31,6 +31,7 @@ public sealed class ConfigurationService
                 },
                 Password = GetString(database, "Password"),
                 RefreshSeconds = GetInt(monitoring, "RefreshSeconds", 2),
+                DisplayMode = NormalizeDisplayMode(GetString(monitoring, "DisplayMode", "all")),
                 Language = GetString(root, "Language", "ru")
             };
         }
@@ -49,6 +50,14 @@ public sealed class ConfigurationService
         element.ValueKind != JsonValueKind.Undefined && element.TryGetProperty(property, out var value) && value.TryGetInt32(out var result)
             ? result
             : fallback;
+
+    private static string NormalizeDisplayMode(string value) =>
+        value.Trim().ToLowerInvariant() switch
+        {
+            "post" => "post",
+            "canteen" => "canteen",
+            _ => "all"
+        };
 }
 
 public sealed class AppConfiguration
@@ -56,5 +65,6 @@ public sealed class AppConfiguration
     public DatabaseSettings Database { get; init; } = new();
     public string Password { get; init; } = "";
     public int RefreshSeconds { get; init; } = 2;
+    public string DisplayMode { get; init; } = "all";
     public string Language { get; init; } = "ru";
 }
