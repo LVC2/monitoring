@@ -23,11 +23,7 @@ public static class WorkTimeCalculator
                 .OrderBy(x => x.RealTime)
                 .ToList();
 
-            var sessions = BuildSessions(ordered);
-
-            var today = SumForPeriod(sessions, todayStart, now);
-            var week = SumForPeriod(sessions, weekStart, now);
-            var month = SumForPeriod(sessions, monthStart, now);
+            var sessions = BuildSessions(ordered, now);
 
             result.Add(new WorkTimeSummary
             {
@@ -36,9 +32,9 @@ public static class WorkTimeCalculator
                     .OrderByDescending(x => x.RealTime)
                     .Select(x => x.CardNumber)
                     .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
-                Today = today,
-                Week = week,
-                Month = month
+                Today = SumForPeriod(sessions, todayStart, now),
+                Week = SumForPeriod(sessions, weekStart, now),
+                Month = SumForPeriod(sessions, monthStart, now)
             });
         }
 
@@ -51,7 +47,7 @@ public static class WorkTimeCalculator
             || item.RawObjectName.StartsWith("Turn2_", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static List<(DateTime Start, DateTime End)> BuildSessions(IReadOnlyList<EventRecord> events)
+    private static List<(DateTime Start, DateTime End)> BuildSessions(IReadOnlyList<EventRecord> events, DateTime now)
     {
         var sessions = new List<(DateTime Start, DateTime End)>();
         DateTime? openEntry = null;
@@ -76,6 +72,13 @@ public static class WorkTimeCalculator
 
                 openEntry = null;
             }
+        }
+
+        if (openEntry is not null && now > openEntry.Value)
+        {
+            var duration = now - openEntry.Value;
+            if (duration <= TimeSpan.FromHours(24))
+                sessions.Add((openEntry.Value, now));
         }
 
         return sessions;
