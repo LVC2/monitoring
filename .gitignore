@@ -24,3 +24,6 @@ appsettings.Development.json
 # OS
 Thumbs.db
 Desktop.ini
+
+# Local database configuration with credentials
+ApacsMonitor/appsettings.json
