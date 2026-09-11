@@ -61,8 +61,7 @@ public partial class MainWindow : Window
         {
             var events = await _sql.GetRecentEventsAsync(1000);
             _events.Clear();
-            foreach (var item in events)
-                _events.Add(item);
+            foreach (var item in events) _events.Add(item);
             ApplyFilters();
             LastUpdateText.Text = $"{T("Обновлено", "Updated", "Güncellendi")}: {DateTime.Now:dd.MM.yyyy HH:mm:ss}";
         }
@@ -78,7 +77,6 @@ public partial class MainWindow : Window
         var today = DateTime.Today;
         DateTime from;
         DateTime to = today.AddDays(1);
-
         switch (_period)
         {
             case "week": from = today.AddDays(-6); break;
@@ -93,16 +91,13 @@ public partial class MainWindow : Window
         IEnumerable<EventRecord> query = _events.Where(x => x.RealTime >= from && x.RealTime < to);
         var search = SearchTextBox.Text.Trim();
         if (!string.IsNullOrWhiteSpace(search))
-        {
             query = query.Where(x => x.InitObjectName.Contains(search, StringComparison.CurrentCultureIgnoreCase)
                 || x.InitObjectId0.ToString().Contains(search, StringComparison.OrdinalIgnoreCase)
                 || x.InitObjectId1.ToString().Contains(search, StringComparison.OrdinalIgnoreCase));
-        }
 
-        // Location filtering will be enabled together with the real access-event mapping.
-        // TAPCSYSEVENTSCOMMON does not contain employee/location access records.
-        EmployeeCards.ItemsSource = query.OrderByDescending(x => x.RealTime).ToList();
-        EventCountText.Text = $"{T("Событий", "Events", "Olaylar")}: {((ICollection<object>)EmployeeCards.ItemsSource).Count}";
+        var result = query.OrderByDescending(x => x.RealTime).ToList();
+        EmployeeCards.ItemsSource = result;
+        EventCountText.Text = $"{T("Событий", "Events", "Olaylar")}: {result.Count}";
     }
 
     private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilters();
@@ -124,13 +119,13 @@ public partial class MainWindow : Window
 
     private void EntranceButton_Click(object sender, RoutedEventArgs e)
     {
-        _location = "entrance";
+        _location = _location == "entrance" ? "all" : "entrance";
         UpdateLocationButtons();
     }
 
     private void CanteenButton_Click(object sender, RoutedEventArgs e)
     {
-        _location = "canteen";
+        _location = _location == "canteen" ? "all" : "canteen";
         UpdateLocationButtons();
     }
 
@@ -158,8 +153,14 @@ public partial class MainWindow : Window
 
     private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_initializingLanguage || LanguageComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not string language)
-            return;
+        if (_initializingLanguage || LanguageComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not string language) return;
+        _config = new AppConfiguration
+        {
+            Database = _config.Database,
+            Password = _config.Password,
+            RefreshSeconds = _config.RefreshSeconds,
+            Language = language
+        };
         SetLanguage(language);
     }
 
@@ -168,9 +169,7 @@ public partial class MainWindow : Window
         _initializingLanguage = true;
         LanguageComboBox.SelectedIndex = language switch { "en" => 1, "tr" => 2, _ => 0 };
         _initializingLanguage = false;
-
         Title = T("APACS Monitor — Журнал доступа", "APACS Monitor — Access Journal", "APACS Monitor — Erişim Günlüğü");
-        TitleText.Text = "APACS Monitor";
         SubtitleText.Text = T("Журнал доступа сотрудников", "Employee access journal", "Çalışan erişim günlüğü");
         SearchHint.Text = T("Поиск по ФИО или номеру карты", "Search by name or card number", "Ad veya kart numarasına göre ara");
         TodayButton.Content = T("Сегодня", "Today", "Bugün");
@@ -186,9 +185,7 @@ public partial class MainWindow : Window
 
     private string T(string ru, string en, string tr)
     {
-        var language = (_config.Language ?? "ru").ToLowerInvariant();
-        if (LanguageComboBox.SelectedItem is ComboBoxItem item && item.Tag is string selected)
-            language = selected;
+        var language = _config.Language?.ToLowerInvariant() ?? "ru";
         return language switch { "en" => en, "tr" => tr, _ => ru };
     }
 }
