@@ -15,11 +15,12 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer;
     private AppConfiguration _config = new();
     private string _period = "today";
-    private bool _initializingLanguage;
+    private bool _initializingLanguage = true;
 
     public MainWindow()
     {
         InitializeComponent();
+        _initializingLanguage = false;
         EmployeeCards.ItemsSource = _events;
         _timer = new DispatcherTimer();
         _timer.Tick += async (_, _) => await RefreshEventsAsync();
