@@ -22,12 +22,14 @@ public partial class MainWindow : Window
     private int _visibleCount = PageSize;
     private bool _initializingLanguage = true;
     private bool _isRefreshing;
+    private bool _compactView;
 
     public MainWindow()
     {
         InitializeComponent();
         _initializingLanguage = false;
         EmployeeCards.ItemsSource = _events;
+        CompactEventsList.ItemsSource = _events;
         _timer = new DispatcherTimer();
         _timer.Tick += async (_, _) => await RefreshEventsAsync(false);
         Loaded += MainWindow_Loaded;
@@ -40,6 +42,7 @@ public partial class MainWindow : Window
         _timer.Interval = TimeSpan.FromSeconds(Math.Max(1, _config.RefreshSeconds));
         SetLanguage(_config.Language);
         _sql.Configure(_config.Database, _config.Password);
+        UpdateViewMode();
         await ConnectFromConfigAsync();
     }
 
@@ -97,6 +100,21 @@ public partial class MainWindow : Window
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         await RefreshEventsAsync(true);
+    }
+
+    private void ViewModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _compactView = !_compactView;
+        UpdateViewMode();
+    }
+
+    private void UpdateViewMode()
+    {
+        CardsScrollViewer.Visibility = _compactView ? Visibility.Collapsed : Visibility.Visible;
+        CompactListBorder.Visibility = _compactView ? Visibility.Visible : Visibility.Collapsed;
+        ViewModeButton.Content = _compactView
+            ? T("▦  Карточки", "▦  Cards", "▦  Kartlar")
+            : T("☷  Кратко", "☷  Compact", "☷  Kısa");
     }
 
     private async void WorkTimeButton_Click(object sender, RoutedEventArgs e)
@@ -211,7 +229,9 @@ public partial class MainWindow : Window
             _visibleCount = PageSize;
 
         var result = GetFilteredEvents();
-        EmployeeCards.ItemsSource = result.Take(_visibleCount).ToList();
+        var visibleItems = result.Take(_visibleCount).ToList();
+        EmployeeCards.ItemsSource = visibleItems;
+        CompactEventsList.ItemsSource = visibleItems;
         EventCountText.Text = $"{T("Проходов", "Access events", "Geçişler")}: {Math.Min(_visibleCount, result.Count)} / {result.Count}";
         ShowMoreButton.Visibility = _visibleCount < result.Count ? Visibility.Visible : Visibility.Collapsed;
         UpdateSearchHint();
@@ -367,6 +387,7 @@ public partial class MainWindow : Window
         ShowMoreButton.Content = T("Показать ещё 50", "Show 50 more", "50 daha göster");
         FromText.Text = T("От", "From", "Başlangıç");
         ToText.Text = T("До", "To", "Bitiş");
+        UpdateViewMode();
         UpdatePeriodButtons();
         ApplyFilters(false);
     }
