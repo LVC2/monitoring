@@ -60,11 +60,9 @@ public sealed class SqlService
                 e.FSEK1
             FROM dbo.TAPCSYSEVENTSCOMMON e
             INNER JOIN dbo.TAPCCARDHOLDERREF r
-                ON r.FSEK0 = e.FSEK0
-               AND r.FSEK1 = e.FSEK1
+                ON r.FSEK1 = e.FSEK1
             INNER JOIN dbo.TAPCCARDHOLDER h
-                ON h.FID0 = r.FSAHOLDER0
-               AND h.FID1 = r.FSAHOLDER1
+                ON h.FID1 = r.FSAHOLDER1
             WHERE ISNULL(h.FEMPLOYEE, 0) <> 0
             ORDER BY e.FREALTIME DESC, e.FREGISTERTIME DESC;
             """;
