@@ -22,8 +22,6 @@ public partial class MainWindow : Window
     private int _visibleCount = PageSize;
     private bool _initializingLanguage = true;
     private bool _isRefreshing;
-    private DateTime _lastWorkTimeRefresh = DateTime.MinValue;
-    private List<WorkTimeSummary> _workTimeSummaries = new();
 
     public MainWindow()
     {
@@ -78,9 +76,6 @@ public partial class MainWindow : Window
             foreach (var item in events)
                 _events.Add(item);
 
-            if ((DateTime.Now - _lastWorkTimeRefresh) >= TimeSpan.FromSeconds(30))
-                await RefreshWorkTimeAsync();
-
             if (resetPagination)
                 _visibleCount = PageSize;
 
@@ -99,20 +94,59 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RefreshWorkTimeAsync()
-    {
-        var now = DateTime.Now;
-        var monthStart = new DateTime(now.Year, now.Month, 1);
-        var from = monthStart.AddDays(-1);
-        var events = await _sql.GetWorkTimeEventsAsync(from, now.AddSeconds(1));
-        _workTimeSummaries = WorkTimeCalculator.Calculate(events, now).ToList();
-        _lastWorkTimeRefresh = now;
-        ApplyWorkTimeFilter();
-    }
-
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         await RefreshEventsAsync(true);
+    }
+
+    private async void WorkTimeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: EventRecord employeeEvent })
+            return;
+
+        try
+        {
+            var now = DateTime.Now;
+            var monthStart = new DateTime(now.Year, now.Month, 1);
+            var events = await _sql.GetWorkTimeEventsAsync(monthStart.AddDays(-1), now.AddSeconds(1));
+            var summaries = WorkTimeCalculator.Calculate(events, now);
+            var summary = summaries.FirstOrDefault(x =>
+                string.Equals(x.FullName, employeeEvent.FullName, StringComparison.CurrentCultureIgnoreCase));
+
+            if (summary is null)
+            {
+                MessageBox.Show(
+                    T("Не удалось рассчитать время на работе для сотрудника.", "Unable to calculate work time for this employee.", "Bu çalışan için çalışma süresi hesaplanamadı."),
+                    T("Время сотрудника", "Employee work time", "Çalışanın çalışma süresi"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var message = string.Join(Environment.NewLine, new[]
+            {
+                summary.FullName,
+                string.IsNullOrWhiteSpace(summary.CardNumber) ? "" : $"{T("Карта", "Card", "Kart")}: {summary.CardNumber}",
+                "",
+                $"{T("Сегодня", "Today", "Bugün")}: {summary.TodayText}",
+                $"{T("Неделя", "Week", "Hafta")}: {summary.WeekText}",
+                $"{T("Месяц", "Month", "Ay")}: {summary.MonthText}"
+            });
+
+            MessageBox.Show(
+                message,
+                T("Время сотрудника", "Employee work time", "Çalışanın çalışma süresi"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                ex.Message,
+                T("Ошибка расчёта времени", "Work time calculation error", "Çalışma süresi hesaplama hatası"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private void SetConnectionStatus(string ru, string en, string tr, string color)
@@ -180,24 +214,7 @@ public partial class MainWindow : Window
         EmployeeCards.ItemsSource = result.Take(_visibleCount).ToList();
         EventCountText.Text = $"{T("Проходов", "Access events", "Geçişler")}: {Math.Min(_visibleCount, result.Count)} / {result.Count}";
         ShowMoreButton.Visibility = _visibleCount < result.Count ? Visibility.Visible : Visibility.Collapsed;
-        ApplyWorkTimeFilter();
         UpdateSearchHint();
-    }
-
-    private void ApplyWorkTimeFilter()
-    {
-        var search = SearchTextBox.Text.Trim();
-        IEnumerable<WorkTimeSummary> query = _workTimeSummaries;
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(x =>
-                x.FullName.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-                x.CardNumber.Contains(search, StringComparison.OrdinalIgnoreCase));
-        }
-
-        WorkTimeGrid.ItemsSource = query.ToList();
-        WorkTimeTitleText.Text = $"{T("Время на работе", "Time at work", "Çalışma süresi")} — {query.Count()}";
     }
 
     private void UpdateSearchHint()
@@ -340,7 +357,6 @@ public partial class MainWindow : Window
         Title = T("APACS Monitor — Журнал доступа", "APACS Monitor — Access Journal", "APACS Monitor — Erişim Günlüğü");
         SubtitleText.Text = T("Журнал доступа сотрудников", "Employee access journal", "Çalışan erişim günlüğü");
         SearchHint.Text = T("Поиск по ФИО или номеру карты", "Search by name or card number", "Ad veya kart numarasına göre ara");
-        WorkTimeTitleText.Text = T("Время на работе", "Time at work", "Çalışma süresi");
         AllButton.Content = T("Все", "All", "Tümü");
         TodayButton.Content = T("Сегодня", "Today", "Bugün");
         WeekButton.Content = T("Неделя", "Week", "Hafta");
