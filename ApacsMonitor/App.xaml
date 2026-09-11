@@ -7,30 +7,21 @@
             <DrawingImage.Drawing>
                 <DrawingGroup>
                     <GeometryDrawing Brush="#2563EB">
-                        <GeometryDrawing.Geometry>
-                            <RectangleGeometry Rect="2,2,60,60" RadiusX="14" RadiusY="14" />
-                        </GeometryDrawing.Geometry>
+                        <GeometryDrawing.Geometry><RectangleGeometry Rect="2,2,60,60" RadiusX="14" RadiusY="14" /></GeometryDrawing.Geometry>
                     </GeometryDrawing>
-                    <GeometryDrawing Brush="#FFFFFF">
-                        <GeometryDrawing.Geometry>
-                            <RectangleGeometry Rect="18,25,28,18" RadiusX="2" RadiusY="2" />
-                        </GeometryDrawing.Geometry>
+                    <GeometryDrawing Brush="White">
+                        <GeometryDrawing.Geometry><RectangleGeometry Rect="17,23,30,22" RadiusX="3" RadiusY="3" /></GeometryDrawing.Geometry>
                     </GeometryDrawing>
-                    <GeometryDrawing Brush="#FFFFFF">
-                        <GeometryDrawing.Geometry>
-                            <RectangleGeometry Rect="24,19,16,6" RadiusX="2" RadiusY="2" />
-                        </GeometryDrawing.Geometry>
+                    <GeometryDrawing Brush="#2563EB">
+                        <GeometryDrawing.Geometry><RectangleGeometry Rect="23,18,18,7" RadiusX="2" RadiusY="2" /></GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="White">
+                        <GeometryDrawing.Geometry><EllipseGeometry Center="32,34" RadiusX="3" RadiusY="3" /></GeometryDrawing.Geometry>
                     </GeometryDrawing>
                 </DrawingGroup>
             </DrawingImage.Drawing>
         </DrawingImage>
-
-        <Style TargetType="TextBlock">
-            <Setter Property="Margin" Value="0,0,0,4" />
-        </Style>
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="12,6" />
-            <Setter Property="Margin" Value="0,4,8,4" />
-        </Style>
+        <Style TargetType="TextBlock"><Setter Property="Margin" Value="0,0,0,4" /></Style>
+        <Style TargetType="Button"><Setter Property="Padding" Value="12,7" /><Setter Property="Margin" Value="0,0,8,0" /></Style>
     </Application.Resources>
 </Application>
