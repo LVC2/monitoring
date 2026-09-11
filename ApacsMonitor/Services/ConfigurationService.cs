@@ -6,57 +6,55 @@ namespace ApacsMonitor.Services;
 
 public sealed class ConfigurationService
 {
-    private readonly string _path;
+    private readonly string _path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
 
-    public ConfigurationService()
-    {
-        _path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-    }
-
-    public DatabaseSettings LoadDatabaseSettings()
+    public AppConfiguration Load()
     {
         if (!File.Exists(_path))
-            return new DatabaseSettings();
+            return new AppConfiguration();
 
         try
         {
             using var document = JsonDocument.Parse(File.ReadAllText(_path));
-            if (!document.RootElement.TryGetProperty("Database", out var database))
-                return new DatabaseSettings();
+            var root = document.RootElement;
+            var database = root.TryGetProperty("Database", out var db) ? db : default;
+            var monitoring = root.TryGetProperty("Monitoring", out var mon) ? mon : default;
 
-            return new DatabaseSettings
+            return new AppConfiguration
             {
-                Server = database.TryGetProperty("Server", out var server) ? server.GetString() ?? "" : "",
-                Database = database.TryGetProperty("Database", out var db) ? db.GetString() ?? "" : "",
-                Authentication = database.TryGetProperty("Authentication", out var auth) ? auth.GetString() ?? "SqlServer" : "SqlServer",
-                UserName = database.TryGetProperty("UserName", out var user) ? user.GetString() ?? "" : ""
+                Database = new DatabaseSettings
+                {
+                    Server = GetString(database, "Server"),
+                    Database = GetString(database, "Database"),
+                    Authentication = GetString(database, "Authentication", "SqlServer"),
+                    UserName = GetString(database, "UserName")
+                },
+                Password = GetString(database, "Password"),
+                RefreshSeconds = GetInt(monitoring, "RefreshSeconds", 2),
+                Language = GetString(root, "Language", "ru")
             };
         }
         catch
         {
-            return new DatabaseSettings();
+            return new AppConfiguration();
         }
     }
 
-    public void SaveDatabaseSettings(DatabaseSettings settings)
-    {
-        var json = new
-        {
-            Database = new
-            {
-                settings.Server,
-                settings.Database,
-                settings.Authentication,
-                settings.UserName
-            },
-            Monitoring = new
-            {
-                RefreshSeconds = 2,
-                EventTable = "dbo.TAPCSYSEVENTSCOMMON"
-            }
-        };
+    private static string GetString(JsonElement element, string property, string fallback = "") =>
+        element.ValueKind != JsonValueKind.Undefined && element.TryGetProperty(property, out var value)
+            ? value.GetString() ?? fallback
+            : fallback;
 
-        var options = new JsonSerializerOptions { WriteIndented = true };
-        File.WriteAllText(_path, JsonSerializer.Serialize(json, options));
-    }
+    private static int GetInt(JsonElement element, string property, int fallback) =>
+        element.ValueKind != JsonValueKind.Undefined && element.TryGetProperty(property, out var value) && value.TryGetInt32(out var result)
+            ? result
+            : fallback;
+}
+
+public sealed class AppConfiguration
+{
+    public DatabaseSettings Database { get; init; } = new();
+    public string Password { get; init; } = "";
+    public int RefreshSeconds { get; init; } = 2;
+    public string Language { get; init; } = "ru";
 }
