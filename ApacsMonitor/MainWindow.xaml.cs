@@ -5,6 +5,8 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using ApacsMonitor.Models;
 using ApacsMonitor.Services;
+using ClosedXML.Excel;
+using Microsoft.Win32;
 
 namespace ApacsMonitor;
 
@@ -15,7 +17,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<EventRecord> _events = new();
     private readonly DispatcherTimer _timer;
     private AppConfiguration _config = new();
-    private string _period = "today";
+    private string _period = "all";
     private bool _initializingLanguage = true;
 
     public MainWindow()
@@ -84,7 +86,7 @@ public partial class MainWindow : Window
         ConnectionStatusText.Text = T(ru, en, tr);
     }
 
-    private void ApplyFilters()
+    private List<EventRecord> GetFilteredEvents()
     {
         var today = DateTime.Today;
         DateTime from;
@@ -92,6 +94,9 @@ public partial class MainWindow : Window
 
         switch (_period)
         {
+            case "today":
+                from = today;
+                break;
             case "week":
                 from = today.AddDays(-6);
                 break;
@@ -103,7 +108,8 @@ public partial class MainWindow : Window
                 to = (ToDatePicker.SelectedDate?.Date ?? today).AddDays(1);
                 break;
             default:
-                from = today;
+                from = DateTime.MinValue;
+                to = DateTime.MaxValue;
                 break;
         }
 
@@ -127,12 +133,18 @@ public partial class MainWindow : Window
             _ => query
         };
 
-        var result = query.OrderByDescending(x => x.RealTime).ToList();
+        return query.OrderByDescending(x => x.RealTime).ToList();
+    }
+
+    private void ApplyFilters()
+    {
+        var result = GetFilteredEvents();
         EmployeeCards.ItemsSource = result;
-        EventCountText.Text = $"{T("Проходов", "Access events", "Geçişler")}: {result.Count}";
+        EventCountText.Text = $"{T("Проходов", "Access events", "Geçişler")}: {result.Count} / {_events.Count}";
     }
 
     private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilters();
+    private void AllButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("all");
     private void TodayButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("today");
     private void WeekButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("week");
     private void MonthButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("month");
@@ -161,10 +173,66 @@ public partial class MainWindow : Window
 
     private void UpdatePeriodButtons()
     {
+        AllButton.Style = FindResource(_period == "all" ? "ActiveFilterButton" : "FilterButton") as Style;
         TodayButton.Style = FindResource(_period == "today" ? "ActiveFilterButton" : "FilterButton") as Style;
         WeekButton.Style = FindResource(_period == "week" ? "ActiveFilterButton" : "FilterButton") as Style;
         MonthButton.Style = FindResource(_period == "month" ? "ActiveFilterButton" : "FilterButton") as Style;
         PeriodButton.Style = FindResource(_period == "custom" ? "ActiveFilterButton" : "FilterButton") as Style;
+    }
+
+    private async void ExportButton_Click(object sender, RoutedEventArgs e)
+    {
+        var rows = GetFilteredEvents();
+        if (rows.Count == 0)
+        {
+            MessageBox.Show(T("Нет данных для выгрузки.", "There is no data to export.", "Dışa aktarılacak veri yok."),
+                T("Выгрузка", "Export", "Dışa aktarma"), MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Filter = "Excel (*.xlsx)|*.xlsx",
+            FileName = $"apacs_access_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx",
+            AddExtension = true
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            using var workbook = new XLWorkbook();
+            var sheet = workbook.Worksheets.Add("Доступ");
+            sheet.Cell(1, 1).Value = T("Время", "Time", "Saat");
+            sheet.Cell(1, 2).Value = T("Сотрудник", "Employee", "Çalışan");
+            sheet.Cell(1, 3).Value = T("Карта", "Card", "Kart");
+            sheet.Cell(1, 4).Value = T("Место", "Location", "Konum");
+            sheet.Cell(1, 5).Value = T("Направление", "Direction", "Yön");
+            sheet.Cell(1, 6).Value = T("Считыватель", "Reader", "Okuyucu");
+
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var row = i + 2;
+                var item = rows[i];
+                sheet.Cell(row, 1).Value = item.RealTime;
+                sheet.Cell(row, 1).Style.DateFormat.Format = "dd.MM.yyyy HH:mm:ss";
+                sheet.Cell(row, 2).Value = item.FullName;
+                sheet.Cell(row, 3).Value = item.CardNumber;
+                sheet.Cell(row, 4).Value = item.Location;
+                sheet.Cell(row, 5).Value = item.Direction;
+                sheet.Cell(row, 6).Value = item.ReaderName;
+            }
+
+            sheet.Row(1).Style.Font.Bold = true;
+            sheet.SheetView.FreezeRows(1);
+            sheet.Columns().AdjustToContents();
+            workbook.SaveAs(dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, T("Ошибка выгрузки", "Export error", "Dışa aktarma hatası"), MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -178,10 +246,10 @@ public partial class MainWindow : Window
             Password = _config.Password,
             RefreshSeconds = _config.RefreshSeconds,
             DisplayMode = _config.DisplayMode,
-            Language = language
+            Language = language.ToLowerInvariant()
         };
 
-        SetLanguage(language);
+        SetLanguage(_config.Language);
     }
 
     private void SetLanguage(string language)
@@ -198,12 +266,15 @@ public partial class MainWindow : Window
         Title = T("APACS Monitor — Журнал доступа", "APACS Monitor — Access Journal", "APACS Monitor — Erişim Günlüğü");
         SubtitleText.Text = T("Журнал доступа сотрудников", "Employee access journal", "Çalışan erişim günlüğü");
         SearchHint.Text = T("Поиск по ФИО или номеру карты", "Search by name or card number", "Ad veya kart numarasına göre ara");
+        AllButton.Content = T("Все", "All", "Tümü");
         TodayButton.Content = T("Сегодня", "Today", "Bugün");
         WeekButton.Content = T("Неделя", "Week", "Hafta");
         MonthButton.Content = T("Месяц", "Month", "Ay");
         PeriodButton.Content = T("Период", "Period", "Dönem");
+        ExportButton.Content = T("⇩  Выгрузить Excel", "⇩  Export Excel", "⇩  Excel'e aktar");
         FromText.Text = T("От", "From", "Başlangıç");
         ToText.Text = T("До", "To", "Bitiş");
+        UpdatePeriodButtons();
         ApplyFilters();
     }
 
