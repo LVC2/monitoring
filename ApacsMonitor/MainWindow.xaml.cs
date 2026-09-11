@@ -12,12 +12,14 @@ namespace ApacsMonitor;
 
 public partial class MainWindow : Window
 {
+    private const int PageSize = 50;
     private readonly ConfigurationService _configuration = new();
     private readonly SqlService _sql = new();
     private readonly ObservableCollection<EventRecord> _events = new();
     private readonly DispatcherTimer _timer;
     private AppConfiguration _config = new();
-    private string _period = "all";
+    private string _period = "today";
+    private int _visibleCount = PageSize;
     private bool _initializingLanguage = true;
 
     public MainWindow()
@@ -63,7 +65,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var events = await _sql.GetRecentEventsAsync(1000);
+            var events = await _sql.GetRecentEventsAsync(5000);
             _events.Clear();
             foreach (var item in events)
                 _events.Add(item);
@@ -136,11 +138,21 @@ public partial class MainWindow : Window
         return query.OrderByDescending(x => x.RealTime).ToList();
     }
 
-    private void ApplyFilters()
+    private void ApplyFilters(bool resetPagination = true)
     {
+        if (resetPagination)
+            _visibleCount = PageSize;
+
         var result = GetFilteredEvents();
-        EmployeeCards.ItemsSource = result;
-        EventCountText.Text = $"{T("Проходов", "Access events", "Geçişler")}: {result.Count} / {_events.Count}";
+        EmployeeCards.ItemsSource = result.Take(_visibleCount).ToList();
+        EventCountText.Text = $"{T("Проходов", "Access events", "Geçişler")}: {Math.Min(_visibleCount, result.Count)} / {result.Count}";
+        ShowMoreButton.Visibility = _visibleCount < result.Count ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ShowMoreButton_Click(object sender, RoutedEventArgs e)
+    {
+        _visibleCount += PageSize;
+        ApplyFilters(false);
     }
 
     private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilters();
@@ -152,9 +164,10 @@ public partial class MainWindow : Window
     private void PeriodButton_Click(object sender, RoutedEventArgs e)
     {
         _period = "custom";
+        _visibleCount = PageSize;
         PeriodPanel.Visibility = Visibility.Visible;
         UpdatePeriodButtons();
-        ApplyFilters();
+        ApplyFilters(false);
     }
 
     private void CustomDateChanged(object sender, SelectionChangedEventArgs e)
@@ -166,9 +179,10 @@ public partial class MainWindow : Window
     private void SelectPeriod(string period)
     {
         _period = period;
+        _visibleCount = PageSize;
         PeriodPanel.Visibility = Visibility.Collapsed;
         UpdatePeriodButtons();
-        ApplyFilters();
+        ApplyFilters(false);
     }
 
     private void UpdatePeriodButtons()
@@ -272,10 +286,11 @@ public partial class MainWindow : Window
         MonthButton.Content = T("Месяц", "Month", "Ay");
         PeriodButton.Content = T("Период", "Period", "Dönem");
         ExportButton.Content = T("⇩  Выгрузить Excel", "⇩  Export Excel", "⇩  Excel'e aktar");
+        ShowMoreButton.Content = T("Показать ещё 50", "Show 50 more", "50 daha göster");
         FromText.Text = T("От", "From", "Başlangıç");
         ToText.Text = T("До", "To", "Bitiş");
         UpdatePeriodButtons();
-        ApplyFilters();
+        ApplyFilters(false);
     }
 
     private string T(string ru, string en, string tr)
