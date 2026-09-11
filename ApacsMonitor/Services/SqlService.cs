@@ -63,13 +63,8 @@ public sealed class SqlService
                 ON r.FSEK1 = e.FSEK1
             INNER JOIN dbo.TAPCCARDHOLDER h
                 ON h.FID1 = r.FSAHOLDER1
-            WHERE
-                (
-                    e.FINITOBJNAME LIKE 'Turn%Post%'
-                    OR e.FINITOBJNAME LIKE 'Canteen[_]%'
-                )
-                AND LOWER(LTRIM(RTRIM(e.FINITOBJNAME))) NOT IN
-                ('timekeeper', 'admin', 'post1', 'canteen')
+            WHERE LTRIM(RTRIM(e.FINITOBJNAME)) IN
+                ('Turn1_Post1_IN', 'Turn1_Post1_OUT', 'Turn2_Post1_IN', 'Turn2_Post1_OUT', 'Canteen_1')
             ORDER BY e.FREALTIME DESC, e.FREGISTERTIME DESC;
             """;
 
@@ -95,7 +90,7 @@ public sealed class SqlService
                 CardNumber = reader.IsDBNull(5) ? "" : Convert.ToString(reader.GetValue(5)) ?? "",
                 Location = ResolveLocation(objectName),
                 Direction = ResolveDirection(objectName),
-                ReaderName = objectName,
+                ReaderName = ResolveReaderName(objectName),
                 RawObjectName = objectName,
                 EventType = reader.IsDBNull(7) ? 0 : Convert.ToInt32(reader.GetValue(7)),
                 SekId0 = reader.IsDBNull(8) ? 0 : Convert.ToInt32(reader.GetValue(8)),
@@ -114,25 +109,46 @@ public sealed class SqlService
     private static string ResolveDirection(string objectName)
     {
         var value = objectName.Trim();
-        if (value.EndsWith("_IN", StringComparison.OrdinalIgnoreCase) || value.Contains("_IN_", StringComparison.OrdinalIgnoreCase))
+
+        if (value.StartsWith("Turn1_", StringComparison.OrdinalIgnoreCase))
             return "Вход";
-        if (value.EndsWith("_OUT", StringComparison.OrdinalIgnoreCase) || value.Contains("_OUT_", StringComparison.OrdinalIgnoreCase))
+
+        if (value.StartsWith("Turn2_", StringComparison.OrdinalIgnoreCase))
             return "Выход";
-        if (value.Contains("IN", StringComparison.OrdinalIgnoreCase) && !value.Contains("OUT", StringComparison.OrdinalIgnoreCase))
-            return "Вход";
-        if (value.Contains("OUT", StringComparison.OrdinalIgnoreCase))
-            return "Выход";
-        return "Проход";
+
+        return value.Equals("Canteen_1", StringComparison.OrdinalIgnoreCase) ? "" : "Проход";
     }
 
     private static string ResolveLocation(string objectName)
     {
         var value = objectName.Trim();
-        if (value.Contains("Canteen", StringComparison.OrdinalIgnoreCase) || value.Contains("Столов", StringComparison.OrdinalIgnoreCase))
+
+        if (value.Equals("Canteen_1", StringComparison.OrdinalIgnoreCase))
             return "Столовая";
-        if (value.Contains("Post", StringComparison.OrdinalIgnoreCase) || value.Contains("Проход", StringComparison.OrdinalIgnoreCase) || value.Contains("Turn", StringComparison.OrdinalIgnoreCase))
-            return "Проходная";
+
+        if (value.StartsWith("Turn1_", StringComparison.OrdinalIgnoreCase))
+            return "Турникет 1 — вход";
+
+        if (value.StartsWith("Turn2_", StringComparison.OrdinalIgnoreCase))
+            return "Турникет 2 — выход";
+
         return string.IsNullOrWhiteSpace(value) ? "Неизвестно" : value;
+    }
+
+    private static string ResolveReaderName(string objectName)
+    {
+        var value = objectName.Trim();
+
+        if (value.Equals("Canteen_1", StringComparison.OrdinalIgnoreCase))
+            return "Столовая";
+
+        if (value.StartsWith("Turn1_", StringComparison.OrdinalIgnoreCase))
+            return "Турникет 1 — вход";
+
+        if (value.StartsWith("Turn2_", StringComparison.OrdinalIgnoreCase))
+            return "Турникет 2 — выход";
+
+        return value;
     }
 
     private void EnsureConfigured()
