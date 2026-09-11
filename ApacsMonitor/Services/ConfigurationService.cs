@@ -30,9 +30,9 @@ public sealed class ConfigurationService
                     UserName = GetString(database, "UserName")
                 },
                 Password = GetString(database, "Password"),
-                RefreshSeconds = GetInt(monitoring, "RefreshSeconds", 2),
+                RefreshSeconds = Math.Max(1, GetInt(monitoring, "RefreshSeconds", 2)),
                 DisplayMode = NormalizeDisplayMode(GetString(monitoring, "DisplayMode", "all")),
-                Language = GetString(root, "Language", "ru")
+                Language = NormalizeLanguage(GetString(root, "Language", "ru"))
             };
         }
         catch
@@ -57,6 +57,14 @@ public sealed class ConfigurationService
             "post" => "post",
             "canteen" => "canteen",
             _ => "all"
+        };
+
+    private static string NormalizeLanguage(string value) =>
+        value.Trim().ToLowerInvariant() switch
+        {
+            "en" => "en",
+            "tr" => "tr",
+            _ => "ru"
         };
 }
 
