@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using ApacsMonitor.Models;
 using ApacsMonitor.Services;
@@ -39,18 +40,19 @@ public partial class MainWindow : Window
 
     private async Task ConnectFromConfigAsync()
     {
+        SetConnectionStatus("Подключение...", "Connecting...", "Bağlanıyor...", "#F59E0B");
+
         try
         {
-            ConnectionStatusText.Text = T("Подключение...", "Connecting...", "Bağlanıyor...");
             await _sql.TestConnectionAsync();
-            ConnectionStatusText.Text = T("Подключено", "Connected", "Bağlandı");
+            SetConnectionStatus("Подключено к БД", "Connected to database", "Veritabanına bağlandı", "#16A34A");
             _timer.Start();
             await RefreshEventsAsync();
         }
         catch (Exception ex)
         {
             _timer.Stop();
-            ConnectionStatusText.Text = T("Ошибка подключения", "Connection error", "Bağlantı hatası");
+            SetConnectionStatus("Нет подключения к БД", "Database disconnected", "Veritabanı bağlantısı yok", "#DC2626");
             LastUpdateText.Text = ex.Message;
         }
     }
@@ -64,14 +66,22 @@ public partial class MainWindow : Window
             foreach (var item in events)
                 _events.Add(item);
 
+            SetConnectionStatus("Подключено к БД", "Connected to database", "Veritabanına bağlandı", "#16A34A");
             ApplyFilters();
             LastUpdateText.Text = $"{T("Обновлено", "Updated", "Güncellendi")}: {DateTime.Now:dd.MM.yyyy HH:mm:ss}";
         }
         catch (Exception ex)
         {
-            ConnectionStatusText.Text = T("Ошибка чтения", "Read error", "Okuma hatası");
+            _timer.Stop();
+            SetConnectionStatus("Нет подключения к БД", "Database disconnected", "Veritabanı bağlantısı yok", "#DC2626");
             LastUpdateText.Text = ex.Message;
         }
+    }
+
+    private void SetConnectionStatus(string ru, string en, string tr, string color)
+    {
+        ConnectionIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+        ConnectionStatusText.Text = T(ru, en, tr);
     }
 
     private void ApplyFilters()
@@ -99,10 +109,6 @@ public partial class MainWindow : Window
 
         IEnumerable<EventRecord> query = _events.Where(x => x.RealTime >= from && x.RealTime < to);
 
-        // DisplayMode is read from appsettings.json and is reserved for the real
-        // access-event pipeline. The current diagnostic source is APACS system
-        // events, so we must not interpret names such as Post1 or Canteen as
-        // employee locations or access events.
         var search = SearchTextBox.Text.Trim();
         if (!string.IsNullOrWhiteSpace(search))
         {
