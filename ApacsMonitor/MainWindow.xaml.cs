@@ -20,7 +20,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        EventsGrid.ItemsSource = _events;
+        EmployeeCards.ItemsSource = _events;
 
         _settings = _configuration.LoadDatabaseSettings();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -82,7 +82,8 @@ public partial class MainWindow : Window
             foreach (var item in events)
                 _events.Add(item);
 
-            EventCountText.Text = $"Событий: {_events.Count}";
+            ApplySearch();
+            EventCountText.Text = $"Сотрудников: {_events.Count}";
             LastUpdateText.Text = $"Обновлено: {DateTime.Now:dd.MM.yyyy HH:mm:ss}";
             ConnectionStatusText.Text = $"Подключено: {_settings.Server} / {_settings.Database}";
         }
@@ -95,6 +96,31 @@ public partial class MainWindow : Window
         {
             RefreshButton.IsEnabled = true;
         }
+    }
+
+    private void SearchTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        ApplySearch();
+    }
+
+    private void ApplySearch()
+    {
+        var text = SearchTextBox?.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            EmployeeCards.ItemsSource = _events;
+            EventCountText.Text = $"Сотрудников: {_events.Count}";
+            return;
+        }
+
+        var filtered = _events
+            .Where(x => x.InitObjectName.Contains(text, StringComparison.CurrentCultureIgnoreCase)
+                     || x.InitObjectId0.ToString().Contains(text, StringComparison.OrdinalIgnoreCase)
+                     || x.InitObjectId1.ToString().Contains(text, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        EmployeeCards.ItemsSource = filtered;
+        EventCountText.Text = $"Найдено: {filtered.Count}";
     }
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
