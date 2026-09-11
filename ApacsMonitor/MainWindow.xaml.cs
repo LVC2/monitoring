@@ -21,6 +21,8 @@ public partial class MainWindow : Window
     private string _period = "today";
     private int _visibleCount = PageSize;
     private bool _initializingLanguage = true;
+    private DateTime _lastWorkTimeRefresh = DateTime.MinValue;
+    private List<WorkTimeSummary> _workTimeSummaries = new();
 
     public MainWindow()
     {
@@ -70,6 +72,9 @@ public partial class MainWindow : Window
             foreach (var item in events)
                 _events.Add(item);
 
+            if ((DateTime.Now - _lastWorkTimeRefresh) >= TimeSpan.FromSeconds(30))
+                await RefreshWorkTimeAsync();
+
             SetConnectionStatus("Подключено к БД", "Connected to database", "Veritabanına bağlandı", "#16A34A");
             ApplyFilters();
             LastUpdateText.Text = $"{T("Обновлено", "Updated", "Güncellendi")}: {DateTime.Now:dd.MM.yyyy HH:mm:ss}";
@@ -80,6 +85,17 @@ public partial class MainWindow : Window
             SetConnectionStatus("Ошибка чтения журнала", "Journal read error", "Günlük okuma hatası", "#DC2626");
             LastUpdateText.Text = ex.Message;
         }
+    }
+
+    private async Task RefreshWorkTimeAsync()
+    {
+        var now = DateTime.Now;
+        var monthStart = new DateTime(now.Year, now.Month, 1);
+        var from = monthStart.AddDays(-1);
+        var events = await _sql.GetWorkTimeEventsAsync(from, now.AddSeconds(1));
+        _workTimeSummaries = WorkTimeCalculator.Calculate(events, now).ToList();
+        _lastWorkTimeRefresh = now;
+        ApplyWorkTimeFilter();
     }
 
     private void SetConnectionStatus(string ru, string en, string tr, string color)
@@ -130,7 +146,7 @@ public partial class MainWindow : Window
 
         query = _config.DisplayMode switch
         {
-            "post" => query.Where(x => x.Location.Equals("Проходная", StringComparison.CurrentCultureIgnoreCase)),
+            "post" => query.Where(x => x.Location.StartsWith("Турникет", StringComparison.CurrentCultureIgnoreCase)),
             "canteen" => query.Where(x => x.Location.Equals("Столовая", StringComparison.CurrentCultureIgnoreCase)),
             _ => query
         };
@@ -147,6 +163,23 @@ public partial class MainWindow : Window
         EmployeeCards.ItemsSource = result.Take(_visibleCount).ToList();
         EventCountText.Text = $"{T("Проходов", "Access events", "Geçişler")}: {Math.Min(_visibleCount, result.Count)} / {result.Count}";
         ShowMoreButton.Visibility = _visibleCount < result.Count ? Visibility.Visible : Visibility.Collapsed;
+        ApplyWorkTimeFilter();
+    }
+
+    private void ApplyWorkTimeFilter()
+    {
+        var search = SearchTextBox.Text.Trim();
+        IEnumerable<WorkTimeSummary> query = _workTimeSummaries;
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(x =>
+                x.FullName.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                x.CardNumber.Contains(search, StringComparison.OrdinalIgnoreCase));
+        }
+
+        WorkTimeGrid.ItemsSource = query.ToList();
+        WorkTimeTitleText.Text = $"{T("Время на работе", "Time at work", "Çalışma süresi")} — {query.Count()}";
     }
 
     private void ShowMoreButton_Click(object sender, RoutedEventArgs e)
@@ -280,6 +313,7 @@ public partial class MainWindow : Window
         Title = T("APACS Monitor — Журнал доступа", "APACS Monitor — Access Journal", "APACS Monitor — Erişim Günlüğü");
         SubtitleText.Text = T("Журнал доступа сотрудников", "Employee access journal", "Çalışan erişim günlüğü");
         SearchHint.Text = T("Поиск по ФИО или номеру карты", "Search by name or card number", "Ad veya kart numarasına göre ara");
+        WorkTimeTitleText.Text = T("Время на работе", "Time at work", "Çalışma süresi");
         AllButton.Content = T("Все", "All", "Tümü");
         TodayButton.Content = T("Сегодня", "Today", "Bugün");
         WeekButton.Content = T("Неделя", "Week", "Hafta");
