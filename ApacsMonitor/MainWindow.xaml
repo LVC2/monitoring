@@ -103,11 +103,30 @@
                 <StackPanel x:Name="PeriodPanel" Orientation="Horizontal" Margin="0,12,0,0" Visibility="Collapsed"><TextBlock x:Name="FromText" Text="От" VerticalAlignment="Center" Margin="0,0,8,0"/><DatePicker x:Name="FromDatePicker" Width="145" SelectedDateChanged="CustomDateChanged"/><TextBlock x:Name="ToText" Text="До" VerticalAlignment="Center" Margin="14,0,8,0"/><DatePicker x:Name="ToDatePicker" Width="145" SelectedDateChanged="CustomDateChanged"/></StackPanel>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button x:Name="ViewModeButton" Content="☷  Кратко" Style="{StaticResource RefreshButton}" Click="ViewModeButton_Click"/>
                 <Button x:Name="RefreshButton" Content="↻  Обновить" Style="{StaticResource RefreshButton}" Click="RefreshButton_Click"/>
                 <Button x:Name="ExportButton" Content="⇩  Выгрузить Excel" Style="{StaticResource ExportButton}" Click="ExportButton_Click"/>
             </StackPanel>
         </Grid>
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsControl x:Name="EmployeeCards" ItemTemplate="{StaticResource EmployeeCardTemplate}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel IsItemsHost="True"/></ItemsPanelTemplate></ItemsControl.ItemsPanel></ItemsControl></ScrollViewer>
+        <Grid Grid.Row="3">
+            <ScrollViewer x:Name="CardsScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="EmployeeCards" ItemTemplate="{StaticResource EmployeeCardTemplate}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel IsItemsHost="True"/></ItemsPanelTemplate></ItemsControl.ItemsPanel></ItemsControl>
+            </ScrollViewer>
+            <Border x:Name="CompactListBorder" Background="White" BorderBrush="#E3E8EE" BorderThickness="1" CornerRadius="10" Visibility="Collapsed">
+                <ListView x:Name="CompactEventsList" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Время" Width="165" DisplayMemberBinding="{Binding RealTime, StringFormat='{}{0:dd.MM.yyyy HH:mm:ss}'}"/>
+                            <GridViewColumn Header="Сотрудник" Width="290" DisplayMemberBinding="{Binding FullName}"/>
+                            <GridViewColumn Header="Карта" Width="120" DisplayMemberBinding="{Binding CardNumber}"/>
+                            <GridViewColumn Header="Место" Width="210" DisplayMemberBinding="{Binding Location}"/>
+                            <GridViewColumn Header="Направление" Width="120" DisplayMemberBinding="{Binding Direction}"/>
+                            <GridViewColumn Header="Считыватель" Width="260" DisplayMemberBinding="{Binding ReaderName}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Border>
+        </Grid>
         <Button x:Name="ShowMoreButton" Grid.Row="4" Content="Показать ещё 50" HorizontalAlignment="Center" Padding="24,10" Margin="0,10,0,0" Background="White" BorderBrush="#DDE3EA" BorderThickness="1" FontSize="13" FontWeight="SemiBold" Cursor="Hand" Click="ShowMoreButton_Click" Visibility="Collapsed"/>
         <StatusBar Grid.Row="5" Margin="0,16,0,0" Background="Transparent"><StatusBarItem><StackPanel Orientation="Horizontal"><Ellipse x:Name="ConnectionIndicator" Width="10" Height="10" Fill="#9CA3AF" VerticalAlignment="Center" Margin="0,0,7,0"/><TextBlock x:Name="ConnectionStatusText" Text="Проверка подключения..." Foreground="#68727E" VerticalAlignment="Center"/></StackPanel></StatusBarItem><Separator/><StatusBarItem><TextBlock x:Name="EventCountText" Text="Событий: 0" Foreground="#68727E"/></StatusBarItem><StatusBarItem HorizontalAlignment="Right"><TextBlock x:Name="LastUpdateText" Foreground="#68727E"/></StatusBarItem></StatusBar>
     </Grid>
