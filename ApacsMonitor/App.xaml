@@ -3,6 +3,28 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
+        <DrawingImage x:Key="AppIcon">
+            <DrawingImage.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="#2563EB">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="2,2,60,60" RadiusX="14" RadiusY="14" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="#FFFFFF">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="18,25,28,18" RadiusX="2" RadiusY="2" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="#FFFFFF">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="24,19,16,6" RadiusX="2" RadiusY="2" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
         <Style TargetType="TextBlock">
             <Setter Property="Margin" Value="0,0,0,4" />
         </Style>
