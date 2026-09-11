@@ -63,7 +63,6 @@ public sealed class SqlService
                 ON r.FSEK1 = e.FSEK1
             INNER JOIN dbo.TAPCCARDHOLDER h
                 ON h.FID1 = r.FSAHOLDER1
-            WHERE ISNULL(h.FEMPLOYEE, 0) <> 0
             ORDER BY e.FREALTIME DESC, e.FREGISTERTIME DESC;
             """;
 
@@ -85,7 +84,7 @@ public sealed class SqlService
             {
                 RealTime = reader.IsDBNull(0) ? DateTime.MinValue : reader.GetDateTime(0),
                 RegisterTime = reader.IsDBNull(1) ? DateTime.MinValue : reader.GetDateTime(1),
-                FullName = BuildFullName(reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? "" : reader.GetString(4)),
+                FullName = BuildFullName(reader.IsDBNull(2) ? "" : reader.GetString(2), reader.IsDBNull(3) ? "" : reader.GetString(3), reader.IsDBNull(4) ? "" : reader.GetString(4)),
                 CardNumber = reader.IsDBNull(5) ? "" : Convert.ToString(reader.GetValue(5)) ?? "",
                 Location = ResolveLocation(objectName),
                 Direction = ResolveDirection(objectName),
