@@ -60,7 +60,9 @@ public partial class MainWindow : Window
         {
             var events = await _sql.GetRecentEventsAsync(1000);
             _events.Clear();
-            foreach (var item in events) _events.Add(item);
+            foreach (var item in events)
+                _events.Add(item);
+
             ApplyFilters();
             LastUpdateText.Text = $"{T("Обновлено", "Updated", "Güncellendi")}: {DateTime.Now:dd.MM.yyyy HH:mm:ss}";
         }
@@ -76,47 +78,43 @@ public partial class MainWindow : Window
         var today = DateTime.Today;
         DateTime from;
         DateTime to = today.AddDays(1);
+
         switch (_period)
         {
-            case "week": from = today.AddDays(-6); break;
-            case "month": from = today.AddMonths(-1).Date; break;
+            case "week":
+                from = today.AddDays(-6);
+                break;
+            case "month":
+                from = today.AddMonths(-1).Date;
+                break;
             case "custom":
                 from = FromDatePicker.SelectedDate?.Date ?? today;
                 to = (ToDatePicker.SelectedDate?.Date ?? today).AddDays(1);
                 break;
-            default: from = today; break;
+            default:
+                from = today;
+                break;
         }
 
         IEnumerable<EventRecord> query = _events.Where(x => x.RealTime >= from && x.RealTime < to);
 
-        // DisplayMode is deliberately controlled only from appsettings.json.
-        // These names are only a temporary compatibility filter for the current
-        // diagnostic system-event source. Real employee events will use a proper
-        // location/access-point field once the access-event table is mapped.
-        query = _config.DisplayMode switch
-        {
-            "post" => query.Where(x => IsPostEvent(x.InitObjectName)),
-            "canteen" => query.Where(x => IsCanteenEvent(x.InitObjectName)),
-            _ => query
-        };
-
+        // DisplayMode is read from appsettings.json and is reserved for the real
+        // access-event pipeline. The current diagnostic source is APACS system
+        // events, so we must not interpret names such as Post1 or Canteen as
+        // employee locations or access events.
         var search = SearchTextBox.Text.Trim();
         if (!string.IsNullOrWhiteSpace(search))
-            query = query.Where(x => x.InitObjectName.Contains(search, StringComparison.CurrentCultureIgnoreCase)
-                || x.InitObjectId0.ToString().Contains(search, StringComparison.OrdinalIgnoreCase)
-                || x.InitObjectId1.ToString().Contains(search, StringComparison.OrdinalIgnoreCase));
+        {
+            query = query.Where(x =>
+                x.InitObjectName.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                x.InitObjectId0.ToString().Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                x.InitObjectId1.ToString().Contains(search, StringComparison.OrdinalIgnoreCase));
+        }
 
         var result = query.OrderByDescending(x => x.RealTime).ToList();
         EmployeeCards.ItemsSource = result;
         EventCountText.Text = $"{T("Событий", "Events", "Olaylar")}: {result.Count}";
     }
-
-    private static bool IsPostEvent(string name) =>
-        name.Contains("Post", StringComparison.OrdinalIgnoreCase) ||
-        name.Contains("Turn", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsCanteenEvent(string name) =>
-        name.Contains("Canteen", StringComparison.OrdinalIgnoreCase);
 
     private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilters();
     private void TodayButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("today");
@@ -133,7 +131,8 @@ public partial class MainWindow : Window
 
     private void CustomDateChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_period == "custom") ApplyFilters();
+        if (_period == "custom")
+            ApplyFilters();
     }
 
     private void SelectPeriod(string period)
@@ -154,7 +153,9 @@ public partial class MainWindow : Window
 
     private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_initializingLanguage || LanguageComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not string language) return;
+        if (_initializingLanguage || LanguageComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not string language)
+            return;
+
         _config = new AppConfiguration
         {
             Database = _config.Database,
@@ -163,14 +164,21 @@ public partial class MainWindow : Window
             DisplayMode = _config.DisplayMode,
             Language = language
         };
+
         SetLanguage(language);
     }
 
     private void SetLanguage(string language)
     {
         _initializingLanguage = true;
-        LanguageComboBox.SelectedIndex = language switch { "en" => 1, "tr" => 2, _ => 0 };
+        LanguageComboBox.SelectedIndex = language switch
+        {
+            "en" => 1,
+            "tr" => 2,
+            _ => 0
+        };
         _initializingLanguage = false;
+
         Title = T("APACS Monitor — Журнал доступа", "APACS Monitor — Access Journal", "APACS Monitor — Erişim Günlüğü");
         SubtitleText.Text = T("Журнал доступа сотрудников", "Employee access journal", "Çalışan erişim günlüğü");
         SearchHint.Text = T("Поиск по ФИО или номеру карты", "Search by name or card number", "Ad veya kart numarasına göre ara");
@@ -186,6 +194,11 @@ public partial class MainWindow : Window
     private string T(string ru, string en, string tr)
     {
         var language = _config.Language?.ToLowerInvariant() ?? "ru";
-        return language switch { "en" => en, "tr" => tr, _ => ru };
+        return language switch
+        {
+            "en" => en,
+            "tr" => tr,
+            _ => ru
+        };
     }
 }
