@@ -63,6 +63,13 @@ public sealed class SqlService
                 ON r.FSEK1 = e.FSEK1
             INNER JOIN dbo.TAPCCARDHOLDER h
                 ON h.FID1 = r.FSAHOLDER1
+            WHERE
+                (
+                    e.FINITOBJNAME LIKE 'Turn%Post%'
+                    OR e.FINITOBJNAME LIKE 'Canteen[_]%'
+                )
+                AND LOWER(LTRIM(RTRIM(e.FINITOBJNAME))) NOT IN
+                ('timekeeper', 'admin', 'post1', 'canteen')
             ORDER BY e.FREALTIME DESC, e.FREGISTERTIME DESC;
             """;
 
