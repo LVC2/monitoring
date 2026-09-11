@@ -25,6 +25,12 @@
             <Setter Property="BorderBrush" Value="#2563EB"/><Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/>
         </Style>
+        <Style x:Key="RefreshButton" TargetType="Button">
+            <Setter Property="Padding" Value="16,9"/><Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="White"/><Setter Property="Foreground" Value="#17202A"/>
+            <Setter Property="BorderBrush" Value="#DDE3EA"/><Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/>
+        </Style>
         <Style x:Key="LanguageComboStyle" TargetType="ComboBox">
             <Setter Property="Width" Value="155"/><Setter Property="Height" Value="42"/>
             <Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#DDE3EA"/><Setter Property="BorderThickness" Value="1"/>
@@ -87,7 +93,10 @@
                 </StackPanel>
                 <StackPanel x:Name="PeriodPanel" Orientation="Horizontal" Margin="0,12,0,0" Visibility="Collapsed"><TextBlock x:Name="FromText" Text="От" VerticalAlignment="Center" Margin="0,0,8,0"/><DatePicker x:Name="FromDatePicker" Width="145" SelectedDateChanged="CustomDateChanged"/><TextBlock x:Name="ToText" Text="До" VerticalAlignment="Center" Margin="14,0,8,0"/><DatePicker x:Name="ToDatePicker" Width="145" SelectedDateChanged="CustomDateChanged"/></StackPanel>
             </StackPanel>
-            <Button x:Name="ExportButton" Grid.Column="1" Content="⇩  Выгрузить Excel" Style="{StaticResource ExportButton}" Click="ExportButton_Click" VerticalAlignment="Top"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button x:Name="RefreshButton" Content="↻  Обновить" Style="{StaticResource RefreshButton}" Click="RefreshButton_Click"/>
+                <Button x:Name="ExportButton" Content="⇩  Выгрузить Excel" Style="{StaticResource ExportButton}" Click="ExportButton_Click"/>
+            </StackPanel>
         </Grid>
         <Border Grid.Row="3" Background="White" BorderBrush="#E1E5EA" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,0,0,16">
             <Grid>
