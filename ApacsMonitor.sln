@@ -1,18 +1,27 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.9.12120.119 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApacsMonitor", "ApacsMonitor\ApacsMonitor.csproj", "{9F2F1D54-0D69-4F12-8B69-1D4A9D8A4D51}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
 		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{9F2F1D54-0D69-4F12-8B69-1D4A9D8A4D51}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{9F2F1D54-0D69-4F12-8B69-1D4A9D8A4D51}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9F2F1D54-0D69-4F12-8B69-1D4A9D8A4D51}.Debug|x64.ActiveCfg = Debug|x64
+		{9F2F1D54-0D69-4F12-8B69-1D4A9D8A4D51}.Debug|x64.Build.0 = Debug|x64
 		{9F2F1D54-0D69-4F12-8B69-1D4A9D8A4D51}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9F2F1D54-0D69-4F12-8B69-1D4A9D8A4D51}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9F2F1D54-0D69-4F12-8B69-1D4A9D8A4D51}.Release|x64.ActiveCfg = Release|x64
+		{9F2F1D54-0D69-4F12-8B69-1D4A9D8A4D51}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal
