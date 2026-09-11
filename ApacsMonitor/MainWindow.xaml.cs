@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     private string _period = "today";
     private int _visibleCount = PageSize;
     private bool _initializingLanguage = true;
+    private bool _isRefreshing;
     private DateTime _lastWorkTimeRefresh = DateTime.MinValue;
     private List<WorkTimeSummary> _workTimeSummaries = new();
 
@@ -30,7 +31,7 @@ public partial class MainWindow : Window
         _initializingLanguage = false;
         EmployeeCards.ItemsSource = _events;
         _timer = new DispatcherTimer();
-        _timer.Tick += async (_, _) => await RefreshEventsAsync();
+        _timer.Tick += async (_, _) => await RefreshEventsAsync(false);
         Loaded += MainWindow_Loaded;
     }
 
@@ -53,7 +54,7 @@ public partial class MainWindow : Window
             await _sql.TestConnectionAsync();
             SetConnectionStatus("Подключено к БД", "Connected to database", "Veritabanına bağlandı", "#16A34A");
             _timer.Start();
-            await RefreshEventsAsync();
+            await RefreshEventsAsync(true);
         }
         catch (Exception ex)
         {
@@ -63,8 +64,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RefreshEventsAsync()
+    private async Task RefreshEventsAsync(bool resetPagination)
     {
+        if (_isRefreshing)
+            return;
+
+        _isRefreshing = true;
+
         try
         {
             var events = await _sql.GetRecentEventsAsync(5000);
@@ -75,15 +81,21 @@ public partial class MainWindow : Window
             if ((DateTime.Now - _lastWorkTimeRefresh) >= TimeSpan.FromSeconds(30))
                 await RefreshWorkTimeAsync();
 
+            if (resetPagination)
+                _visibleCount = PageSize;
+
             SetConnectionStatus("Подключено к БД", "Connected to database", "Veritabanına bağlandı", "#16A34A");
-            ApplyFilters();
+            ApplyFilters(false);
             LastUpdateText.Text = $"{T("Обновлено", "Updated", "Güncellendi")}: {DateTime.Now:dd.MM.yyyy HH:mm:ss}";
         }
         catch (Exception ex)
         {
-            _timer.Stop();
             SetConnectionStatus("Ошибка чтения журнала", "Journal read error", "Günlük okuma hatası", "#DC2626");
             LastUpdateText.Text = ex.Message;
+        }
+        finally
+        {
+            _isRefreshing = false;
         }
     }
 
@@ -96,6 +108,11 @@ public partial class MainWindow : Window
         _workTimeSummaries = WorkTimeCalculator.Calculate(events, now).ToList();
         _lastWorkTimeRefresh = now;
         ApplyWorkTimeFilter();
+    }
+
+    private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshEventsAsync(true);
     }
 
     private void SetConnectionStatus(string ru, string en, string tr, string color)
@@ -154,7 +171,7 @@ public partial class MainWindow : Window
         return query.OrderByDescending(x => x.RealTime).ToList();
     }
 
-    private void ApplyFilters(bool resetPagination = true)
+    private void ApplyFilters(bool resetPagination = false)
     {
         if (resetPagination)
             _visibleCount = PageSize;
@@ -164,6 +181,7 @@ public partial class MainWindow : Window
         EventCountText.Text = $"{T("Проходов", "Access events", "Geçişler")}: {Math.Min(_visibleCount, result.Count)} / {result.Count}";
         ShowMoreButton.Visibility = _visibleCount < result.Count ? Visibility.Visible : Visibility.Collapsed;
         ApplyWorkTimeFilter();
+        UpdateSearchHint();
     }
 
     private void ApplyWorkTimeFilter()
@@ -182,13 +200,24 @@ public partial class MainWindow : Window
         WorkTimeTitleText.Text = $"{T("Время на работе", "Time at work", "Çalışma süresi")} — {query.Count()}";
     }
 
+    private void UpdateSearchHint()
+    {
+        SearchHint.Visibility = string.IsNullOrWhiteSpace(SearchTextBox.Text)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
     private void ShowMoreButton_Click(object sender, RoutedEventArgs e)
     {
         _visibleCount += PageSize;
         ApplyFilters(false);
     }
 
-    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilters();
+    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ApplyFilters(false);
+    }
+
     private void AllButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("all");
     private void TodayButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("today");
     private void WeekButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("week");
@@ -197,7 +226,6 @@ public partial class MainWindow : Window
     private void PeriodButton_Click(object sender, RoutedEventArgs e)
     {
         _period = "custom";
-        _visibleCount = PageSize;
         PeriodPanel.Visibility = Visibility.Visible;
         UpdatePeriodButtons();
         ApplyFilters(false);
@@ -206,13 +234,12 @@ public partial class MainWindow : Window
     private void CustomDateChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_period == "custom")
-            ApplyFilters();
+            ApplyFilters(false);
     }
 
     private void SelectPeriod(string period)
     {
         _period = period;
-        _visibleCount = PageSize;
         PeriodPanel.Visibility = Visibility.Collapsed;
         UpdatePeriodButtons();
         ApplyFilters(false);
@@ -319,6 +346,7 @@ public partial class MainWindow : Window
         WeekButton.Content = T("Неделя", "Week", "Hafta");
         MonthButton.Content = T("Месяц", "Month", "Ay");
         PeriodButton.Content = T("Период", "Period", "Dönem");
+        RefreshButton.Content = T("↻  Обновить", "↻  Refresh", "↻  Yenile");
         ExportButton.Content = T("⇩  Выгрузить Excel", "⇩  Export Excel", "⇩  Excel'e aktar");
         ShowMoreButton.Content = T("Показать ещё 50", "Show 50 more", "50 daha göster");
         FromText.Text = T("От", "From", "Başlangıç");
