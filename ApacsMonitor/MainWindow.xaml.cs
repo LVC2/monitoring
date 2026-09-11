@@ -15,7 +15,6 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer;
     private AppConfiguration _config = new();
     private string _period = "today";
-    private string _location = "all";
     private bool _initializingLanguage;
 
     public MainWindow()
@@ -89,6 +88,18 @@ public partial class MainWindow : Window
         }
 
         IEnumerable<EventRecord> query = _events.Where(x => x.RealTime >= from && x.RealTime < to);
+
+        // DisplayMode is deliberately controlled only from appsettings.json.
+        // These names are only a temporary compatibility filter for the current
+        // diagnostic system-event source. Real employee events will use a proper
+        // location/access-point field once the access-event table is mapped.
+        query = _config.DisplayMode switch
+        {
+            "post" => query.Where(x => IsPostEvent(x.InitObjectName)),
+            "canteen" => query.Where(x => IsCanteenEvent(x.InitObjectName)),
+            _ => query
+        };
+
         var search = SearchTextBox.Text.Trim();
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(x => x.InitObjectName.Contains(search, StringComparison.CurrentCultureIgnoreCase)
@@ -100,10 +111,18 @@ public partial class MainWindow : Window
         EventCountText.Text = $"{T("Событий", "Events", "Olaylar")}: {result.Count}";
     }
 
+    private static bool IsPostEvent(string name) =>
+        name.Contains("Post", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("Turn", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCanteenEvent(string name) =>
+        name.Contains("Canteen", StringComparison.OrdinalIgnoreCase);
+
     private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilters();
     private void TodayButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("today");
     private void WeekButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("week");
     private void MonthButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("month");
+
     private void PeriodButton_Click(object sender, RoutedEventArgs e)
     {
         _period = "custom";
@@ -115,18 +134,6 @@ public partial class MainWindow : Window
     private void CustomDateChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_period == "custom") ApplyFilters();
-    }
-
-    private void EntranceButton_Click(object sender, RoutedEventArgs e)
-    {
-        _location = _location == "entrance" ? "all" : "entrance";
-        UpdateLocationButtons();
-    }
-
-    private void CanteenButton_Click(object sender, RoutedEventArgs e)
-    {
-        _location = _location == "canteen" ? "all" : "canteen";
-        UpdateLocationButtons();
     }
 
     private void SelectPeriod(string period)
@@ -145,12 +152,6 @@ public partial class MainWindow : Window
         PeriodButton.Style = FindResource(_period == "custom" ? "ActiveFilterButton" : "FilterButton") as Style;
     }
 
-    private void UpdateLocationButtons()
-    {
-        EntranceButton.Style = FindResource(_location == "entrance" ? "ActiveFilterButton" : "FilterButton") as Style;
-        CanteenButton.Style = FindResource(_location == "canteen" ? "ActiveFilterButton" : "FilterButton") as Style;
-    }
-
     private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_initializingLanguage || LanguageComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not string language) return;
@@ -159,6 +160,7 @@ public partial class MainWindow : Window
             Database = _config.Database,
             Password = _config.Password,
             RefreshSeconds = _config.RefreshSeconds,
+            DisplayMode = _config.DisplayMode,
             Language = language
         };
         SetLanguage(language);
@@ -176,8 +178,6 @@ public partial class MainWindow : Window
         WeekButton.Content = T("Неделя", "Week", "Hafta");
         MonthButton.Content = T("Месяц", "Month", "Ay");
         PeriodButton.Content = T("Период", "Period", "Dönem");
-        EntranceButton.Content = T("Проходная", "Entrance", "Giriş");
-        CanteenButton.Content = T("Столовая", "Canteen", "Yemekhane");
         FromText.Text = T("От", "From", "Başlangıç");
         ToText.Text = T("До", "To", "Bitiş");
         ApplyFilters();
