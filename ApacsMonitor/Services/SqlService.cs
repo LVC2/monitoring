@@ -48,16 +48,25 @@ public sealed class SqlService
 
         const string sql = """
             SELECT TOP (@Limit)
-                FREALTIME,
-                FREGISTERTIME,
-                FINITOBJNAME,
-                FNUMEVTYPE,
-                FSAINITOBJ0,
-                FSAINITOBJ1,
-                FSEK0,
-                FSEK1
-            FROM dbo.TAPCSYSEVENTSCOMMON
-            ORDER BY FREALTIME DESC, FREGISTERTIME DESC;
+                e.FREALTIME,
+                e.FREGISTERTIME,
+                h.FLASTNAME,
+                h.FFIRSTNAME,
+                h.FMIDDLENAME,
+                r.FCARDNUM,
+                e.FINITOBJNAME,
+                e.FNUMEVTYPE,
+                e.FSEK0,
+                e.FSEK1
+            FROM dbo.TAPCSYSEVENTSCOMMON e
+            INNER JOIN dbo.TAPCCARDHOLDERREF r
+                ON r.FSEK0 = e.FSEK0
+               AND r.FSEK1 = e.FSEK1
+            INNER JOIN dbo.TAPCCARDHOLDER h
+                ON h.FID0 = r.FSAHOLDER0
+               AND h.FID1 = r.FSAHOLDER1
+            WHERE ISNULL(h.FEMPLOYEE, 0) <> 0
+            ORDER BY e.FREALTIME DESC, e.FREGISTERTIME DESC;
             """;
 
         var result = new List<EventRecord>();
@@ -66,26 +75,60 @@ public sealed class SqlService
         await connection.OpenAsync(cancellationToken);
 
         await using var command = new SqlCommand(sql, connection);
-        command.Parameters.Add("@Limit", SqlDbType.Int).Value = limit;
+        command.Parameters.Add("@Limit", SqlDbType.Int).Value = Math.Max(1, limit);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
         {
+            var objectName = reader.IsDBNull(6) ? "" : reader.GetString(6);
+
             result.Add(new EventRecord
             {
                 RealTime = reader.IsDBNull(0) ? DateTime.MinValue : reader.GetDateTime(0),
                 RegisterTime = reader.IsDBNull(1) ? DateTime.MinValue : reader.GetDateTime(1),
-                InitObjectName = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                EventType = reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
-                InitObjectId0 = reader.IsDBNull(4) ? 0 : Convert.ToInt32(reader.GetValue(4)),
-                InitObjectId1 = reader.IsDBNull(5) ? 0 : Convert.ToInt32(reader.GetValue(5)),
-                SekId0 = reader.IsDBNull(6) ? 0 : Convert.ToInt32(reader.GetValue(6)),
-                SekId1 = reader.IsDBNull(7) ? 0 : Convert.ToInt32(reader.GetValue(7))
+                FullName = BuildFullName(reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? "" : reader.GetString(4)),
+                CardNumber = reader.IsDBNull(5) ? "" : Convert.ToString(reader.GetValue(5)) ?? "",
+                Location = ResolveLocation(objectName),
+                Direction = ResolveDirection(objectName),
+                ReaderName = objectName,
+                RawObjectName = objectName,
+                EventType = reader.IsDBNull(7) ? 0 : Convert.ToInt32(reader.GetValue(7)),
+                SekId0 = reader.IsDBNull(8) ? 0 : Convert.ToInt32(reader.GetValue(8)),
+                SekId1 = reader.IsDBNull(9) ? 0 : Convert.ToInt32(reader.GetValue(9))
             });
         }
 
         return result;
+    }
+
+    private static string BuildFullName(string lastName, string firstName, string middleName)
+    {
+        return string.Join(" ", new[] { lastName, firstName, middleName }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string ResolveDirection(string objectName)
+    {
+        var value = objectName.Trim();
+        if (value.EndsWith("_IN", StringComparison.OrdinalIgnoreCase) || value.Contains("_IN_", StringComparison.OrdinalIgnoreCase))
+            return "Вход";
+        if (value.EndsWith("_OUT", StringComparison.OrdinalIgnoreCase) || value.Contains("_OUT_", StringComparison.OrdinalIgnoreCase))
+            return "Выход";
+        if (value.Contains("IN", StringComparison.OrdinalIgnoreCase) && !value.Contains("OUT", StringComparison.OrdinalIgnoreCase))
+            return "Вход";
+        if (value.Contains("OUT", StringComparison.OrdinalIgnoreCase))
+            return "Выход";
+        return "Проход";
+    }
+
+    private static string ResolveLocation(string objectName)
+    {
+        var value = objectName.Trim();
+        if (value.Contains("Canteen", StringComparison.OrdinalIgnoreCase) || value.Contains("Столов", StringComparison.OrdinalIgnoreCase))
+            return "Столовая";
+        if (value.Contains("Post", StringComparison.OrdinalIgnoreCase) || value.Contains("Проход", StringComparison.OrdinalIgnoreCase) || value.Contains("Turn", StringComparison.OrdinalIgnoreCase))
+            return "Проходная";
+        return string.IsNullOrWhiteSpace(value) ? "Неизвестно" : value;
     }
 
     private void EnsureConfigured()
