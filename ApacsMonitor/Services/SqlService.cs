@@ -68,13 +68,56 @@ public sealed class SqlService
             ORDER BY e.FREALTIME DESC, e.FREGISTERTIME DESC;
             """;
 
+        return await ExecuteEventsQueryAsync(sql, command =>
+        {
+            command.Parameters.Add("@Limit", SqlDbType.Int).Value = Math.Max(1, limit);
+        }, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EventRecord>> GetWorkTimeEventsAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+
+        const string sql = """
+            SELECT
+                e.FREALTIME,
+                e.FREGISTERTIME,
+                h.FLASTNAME,
+                h.FFIRSTNAME,
+                h.FMIDDLENAME,
+                r.FCARDNUM,
+                e.FINITOBJNAME,
+                e.FNUMEVTYPE,
+                e.FSEK0,
+                e.FSEK1
+            FROM dbo.TAPCSYSEVENTSCOMMON e
+            INNER JOIN dbo.TAPCCARDHOLDERREF r
+                ON r.FSEK1 = e.FSEK1
+            INNER JOIN dbo.TAPCCARDHOLDER h
+                ON h.FID1 = r.FSAHOLDER1
+            WHERE e.FREALTIME >= @From
+              AND e.FREALTIME < @To
+              AND LTRIM(RTRIM(e.FINITOBJNAME)) IN
+                  ('Turn1_Post1_IN', 'Turn1_Post1_OUT', 'Turn2_Post1_IN', 'Turn2_Post1_OUT')
+            ORDER BY e.FREALTIME ASC, e.FREGISTERTIME ASC;
+            """;
+
+        return await ExecuteEventsQueryAsync(sql, command =>
+        {
+            command.Parameters.Add("@From", SqlDbType.DateTime).Value = from;
+            command.Parameters.Add("@To", SqlDbType.DateTime).Value = to;
+        }, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<EventRecord>> ExecuteEventsQueryAsync(string sql, Action<SqlCommand> configureCommand, CancellationToken cancellationToken)
+    {
         var result = new List<EventRecord>();
 
         await using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         await using var command = new SqlCommand(sql, connection);
-        command.Parameters.Add("@Limit", SqlDbType.Int).Value = Math.Max(1, limit);
+        configureCommand(command);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
