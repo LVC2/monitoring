@@ -66,7 +66,7 @@
         </DataTemplate>
     </Window.Resources>
     <Grid Margin="28">
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <Grid Grid.Row="0" Margin="0,0,0,22">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal"><Image Source="{StaticResource AppIcon}" Width="52" Height="52" Margin="0,0,14,0"/><StackPanel VerticalAlignment="Center"><TextBlock x:Name="TitleText" Text="APACS Monitor" FontSize="30" FontWeight="Bold" Foreground="#17202A"/><TextBlock x:Name="SubtitleText" Text="Журнал доступа сотрудников" FontSize="14" Foreground="#7A8491"/></StackPanel></StackPanel>
@@ -90,6 +90,7 @@
             <Button x:Name="ExportButton" Grid.Column="1" Content="⇩  Выгрузить Excel" Style="{StaticResource ExportButton}" Click="ExportButton_Click" VerticalAlignment="Top"/>
         </Grid>
         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsControl x:Name="EmployeeCards" ItemTemplate="{StaticResource EmployeeCardTemplate}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel IsItemsHost="True"/></ItemsPanelTemplate></ItemsControl.ItemsPanel></ItemsControl></ScrollViewer>
-        <StatusBar Grid.Row="4" Margin="0,16,0,0" Background="Transparent"><StatusBarItem><StackPanel Orientation="Horizontal"><Ellipse x:Name="ConnectionIndicator" Width="10" Height="10" Fill="#9CA3AF" VerticalAlignment="Center" Margin="0,0,7,0"/><TextBlock x:Name="ConnectionStatusText" Text="Проверка подключения..." Foreground="#68727E" VerticalAlignment="Center"/></StackPanel></StatusBarItem><Separator/><StatusBarItem><TextBlock x:Name="EventCountText" Text="Событий: 0" Foreground="#68727E"/></StatusBarItem><StatusBarItem HorizontalAlignment="Right"><TextBlock x:Name="LastUpdateText" Foreground="#68727E"/></StatusBarItem></StatusBar>
+        <Button x:Name="ShowMoreButton" Grid.Row="4" Content="Показать ещё 50" HorizontalAlignment="Center" Padding="24,10" Margin="0,10,0,0" Background="White" BorderBrush="#DDE3EA" BorderThickness="1" FontSize="13" FontWeight="SemiBold" Cursor="Hand" Click="ShowMoreButton_Click" Visibility="Collapsed"/>
+        <StatusBar Grid.Row="5" Margin="0,16,0,0" Background="Transparent"><StatusBarItem><StackPanel Orientation="Horizontal"><Ellipse x:Name="ConnectionIndicator" Width="10" Height="10" Fill="#9CA3AF" VerticalAlignment="Center" Margin="0,0,7,0"/><TextBlock x:Name="ConnectionStatusText" Text="Проверка подключения..." Foreground="#68727E" VerticalAlignment="Center"/></StackPanel></StatusBarItem><Separator/><StatusBarItem><TextBlock x:Name="EventCountText" Text="Событий: 0" Foreground="#68727E"/></StatusBarItem><StatusBarItem HorizontalAlignment="Right"><TextBlock x:Name="LastUpdateText" Foreground="#68727E"/></StatusBarItem></StatusBar>
     </Grid>
 </Window>
