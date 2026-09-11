@@ -1,0 +1,26 @@
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio / Rider
+.idea/
+
+# Build output
+Debug/
+Release/
+
+# Local secrets / settings
+appsettings.Development.json
+
+# SQL backups
+*.bak
+*.mdf
+*.ldf
+
+# OS
+Thumbs.db
+Desktop.ini
