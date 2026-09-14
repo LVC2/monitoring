@@ -83,7 +83,11 @@ public sealed class SqlService
             command.Parameters.Add("@Limit", SqlDbType.Int).Value = Math.Max(1, limit);
         }, cancellationToken);
 
-        await AttachEmployeePhotosAsync(result, cancellationToken);
+        // Only cards currently close to the visible top of the journal need photos.
+        // The remaining events are still kept lightweight; their photos are not read
+        // from SQL until they become part of a later refresh.
+        var photoEvents = result.Take(Math.Min(100, result.Count)).ToList();
+        await AttachEmployeePhotosAsync(photoEvents, cancellationToken);
         return result;
     }
 
@@ -147,7 +151,6 @@ public sealed class SqlService
             await using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync(cancellationToken);
 
-            // Keep well below SQL Server's 2100-parameter limit.
             foreach (var batch in missingIds.Chunk(1000))
             {
                 var parameterNames = batch.Select((_, index) => $"@Holder{index}").ToArray();
