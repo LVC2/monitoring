@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using ApacsMonitor.Models;
 using ApacsMonitor.Services;
 using ClosedXML.Excel;
+using Microsoft.Data.SqlClient;
 using Microsoft.Win32;
 
 namespace ApacsMonitor;
@@ -66,12 +67,41 @@ public partial class MainWindow : Window
             _timer.Start();
             await RefreshEventsAsync(true);
         }
+        catch (SqlException ex)
+        {
+            _timer.Stop();
+            SetConnectionStatus("Нет подключения к БД", "Database disconnected", "Veritabanı bağlantısı yok", "#DC2626");
+            LastUpdateText.Text = FormatSqlException(ex);
+        }
         catch (Exception ex)
         {
             _timer.Stop();
             SetConnectionStatus("Нет подключения к БД", "Database disconnected", "Veritabanı bağlantısı yok", "#DC2626");
-            LastUpdateText.Text = ex.Message;
+            LastUpdateText.Text = ex.ToString();
         }
+    }
+
+    private static string FormatSqlException(SqlException ex)
+    {
+        var details = new List<string>
+        {
+            ex.Message
+        };
+
+        if (ex.Number != 0)
+            details.Add($"SQL error: {ex.Number}");
+
+        foreach (SqlError error in ex.Errors)
+        {
+            var line = $"[{error.Number}] {error.Message}";
+            if (!details.Contains(line))
+                details.Add(line);
+        }
+
+        if (ex.InnerException is not null)
+            details.Add($"Inner: {ex.InnerException.Message}");
+
+        return string.Join(Environment.NewLine, details);
     }
 
     private async Task RefreshEventsAsync(bool resetPagination)
