@@ -1,6 +1,7 @@
 <Window x:Class="ApacsMonitor.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="clr-namespace:ApacsMonitor.Services"
         Title="APACS Monitor — Журнал доступа"
         Icon="{StaticResource AppIcon}"
         Width="1400"
@@ -11,6 +12,8 @@
         Background="#F5F7FA">
 
     <Window.Resources>
+        <services:ByteArrayToImageConverter x:Key="PhotoConverter"/>
+
         <Style x:Key="FilterButton" TargetType="Button">
             <Setter Property="Padding" Value="15,9"/>
             <Setter Property="Margin" Value="0,0,8,0"/>
@@ -155,13 +158,16 @@
 
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="58"/>
+                            <ColumnDefinition Width="72"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Border Width="54" Height="54" CornerRadius="27" Background="#EAF0F8">
-                            <Image Source="{StaticResource AppIcon}" Width="30" Height="30"/>
+                        <Border Width="64" Height="64" CornerRadius="32" Background="#EAF0F8" ClipToBounds="True">
+                            <Grid>
+                                <Image Source="{StaticResource AppIcon}" Width="30" Height="30"/>
+                                <Image Source="{Binding PhotoBytes, Converter={StaticResource PhotoConverter}}" Width="64" Height="64" Stretch="UniformToFill"/>
+                            </Grid>
                         </Border>
 
                         <StackPanel Grid.Column="1" Margin="14,0,10,0">
