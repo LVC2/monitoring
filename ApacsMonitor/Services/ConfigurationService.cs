@@ -8,6 +8,8 @@ public sealed class ConfigurationService
 {
     private readonly string _path = ResolvePath();
 
+    public string Path => _path;
+
     public AppConfiguration Load()
     {
         if (!File.Exists(_path))
@@ -58,10 +60,10 @@ public sealed class ConfigurationService
         for (var i = 0; i < 3; i++)
             projectPath = Directory.GetParent(projectPath)?.FullName ?? projectPath;
 
-        return Path.Combine(projectPath, "appsettings.json");
+        return System.IO.Path.Combine(projectPath, "appsettings.json");
 #else
         // Published/Release application: configuration sits next to the executable.
-        return Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        return System.IO.Path.Combine(AppContext.BaseDirectory, "appsettings.json");
 #endif
     }
 
