@@ -6,7 +6,7 @@ namespace ApacsMonitor.Services;
 
 public sealed class SqlService
 {
-    private readonly ApacsSdkPhotoService _apacsPhotos = new();
+    private readonly SqlPhotoService _photos = new();
     private string? _connectionString;
 
     public void Configure(DatabaseSettings settings, string password)
@@ -33,7 +33,7 @@ public sealed class SqlService
         }
 
         _connectionString = builder.ConnectionString;
-        _apacsPhotos.ClearCache();
+        _photos.Configure(_connectionString);
     }
 
     public async Task TestConnectionAsync(CancellationToken cancellationToken = default)
@@ -71,7 +71,6 @@ public sealed class SqlService
         var result = await ExecuteEventsQueryAsync(sql, command =>
             command.Parameters.Add("@Limit", SqlDbType.Int).Value = Math.Max(1, limit), cancellationToken);
 
-        // Never block the journal refresh on COM/APACS photo loading.
         _ = AttachEmployeePhotosAsync(result.Take(Math.Min(100, result.Count)).ToList());
         return result;
     }
@@ -114,11 +113,11 @@ public sealed class SqlService
     {
         try
         {
-            await _apacsPhotos.LoadPhotosAsync(events, CancellationToken.None);
+            await _photos.LoadPhotosAsync(events, CancellationToken.None);
         }
         catch
         {
-            // APACS SDK is optional; SQL monitoring must remain usable without it.
+            // A missing/unsupported photo table must never stop the event journal.
         }
     }
 
