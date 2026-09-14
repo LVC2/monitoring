@@ -47,8 +47,10 @@ public partial class MainWindow : Window
         try
         {
             _config = _configuration.Load();
-            _log = new DebugLogService(_config.Debug);
+            var configDirectory = System.IO.Path.GetDirectoryName(_configuration.Path) ?? AppContext.BaseDirectory;
+            _log = new DebugLogService(_config.Debug, configDirectory);
             _log.Info($"Application started. Debug={_config.Debug}, ConfigPath={_configuration.Path}");
+            _log.Info($"LogDirectory={_log.LogDirectory}, LogFile={_log.LogFilePath}");
             _log.Info($"Database settings: Server={_config.Database.Server}, Database={_config.Database.Database}, Authentication={_config.Database.Authentication}, User={_config.Database.UserName}");
         }
         catch (Exception ex)
@@ -100,6 +102,29 @@ public partial class MainWindow : Window
         }
     }
 
+    private static string FormatSqlException(SqlException ex)
+    {
+        var details = new List<string>
+        {
+            ex.Message
+        };
+
+        if (ex.Number != 0)
+            details.Add($"SQL error: {ex.Number}");
+
+        foreach (SqlError error in ex.Errors)
+        {
+            var line = $"[{error.Number}] {error.Message}";
+            if (!details.Contains(line))
+                details.Add(line);
+        }
+
+        if (ex.InnerException is not null)
+            details.Add($"Inner: {ex.InnerException.Message}");
+
+        return string.Join(Environment.NewLine, details);
+    }
+
     private async Task RefreshEventsAsync(bool resetPagination)
     {
         if (_isRefreshing)
@@ -125,7 +150,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _log.Error("Access journal read failed.", ex);
+            _log.Error("Access event read failed.", ex);
             SetConnectionStatus("Ошибка чтения журнала", "Journal read error", "Günlük okuma hatası", "#DC2626");
             LastUpdateText.Text = ex.Message;
         }
@@ -133,27 +158,6 @@ public partial class MainWindow : Window
         {
             _isRefreshing = false;
         }
-    }
-
-    private static string FormatSqlException(SqlException ex)
-    {
-        var details = new List<string>
-        {
-            ex.Message,
-            $"SQL error: {ex.Number}"
-        };
-
-        foreach (SqlError error in ex.Errors)
-        {
-            var line = $"[{error.Number}] {error.Message}";
-            if (!details.Contains(line))
-                details.Add(line);
-        }
-
-        if (ex.InnerException is not null)
-            details.Add($"Inner: {ex.InnerException}");
-
-        return string.Join(Environment.NewLine, details);
     }
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
@@ -218,7 +222,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _log.Error("Work time calculation failed.", ex);
             MessageBox.Show(
                 ex.Message,
                 T("Ошибка расчёта времени", "Work time calculation error", "Çalışma süresi hesaplama hatası"),
@@ -402,7 +405,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _log.Error("Excel export failed.", ex);
             MessageBox.Show(ex.Message, T("Ошибка выгрузки", "Export error", "Dışa aktarma hatası"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -418,8 +420,7 @@ public partial class MainWindow : Window
             Password = _config.Password,
             RefreshSeconds = _config.RefreshSeconds,
             DisplayMode = _config.DisplayMode,
-            Language = language.ToLowerInvariant(),
-            Debug = _config.Debug
+            Language = language.ToLowerInvariant()
         };
 
         SetLanguage(_config.Language);
