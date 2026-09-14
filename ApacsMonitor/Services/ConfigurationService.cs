@@ -15,7 +15,14 @@ public sealed class ConfigurationService
 
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(_path));
+            using var document = JsonDocument.Parse(
+                File.ReadAllText(_path),
+                new JsonDocumentOptions
+                {
+                    CommentHandling = JsonCommentHandling.Skip,
+                    AllowTrailingCommas = true
+                });
+
             var root = document.RootElement;
             var database = root.TryGetProperty("Database", out var db) ? db : default;
             var monitoring = root.TryGetProperty("Monitoring", out var mon) ? mon : default;
@@ -35,9 +42,9 @@ public sealed class ConfigurationService
                 Language = NormalizeLanguage(GetString(root, "Language", "ru"))
             };
         }
-        catch
+        catch (Exception ex)
         {
-            return new AppConfiguration();
+            throw new InvalidOperationException($"Не удалось прочитать конфигурацию: {_path}\n{ex.Message}", ex);
         }
     }
 
