@@ -7,8 +7,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ApacsMonitor</AssemblyName>
     <RootNamespace>ApacsMonitor</RootNamespace>
-    <Platforms>x86</Platforms>
-    <PlatformTarget>x86</PlatformTarget>
   </PropertyGroup>
 
   <ItemGroup>
