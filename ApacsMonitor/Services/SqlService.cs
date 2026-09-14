@@ -11,11 +11,13 @@ public sealed class SqlService
 
     public void Configure(DatabaseSettings settings, string password)
     {
+        var dataSource = NormalizeDataSource(settings.Server);
         var builder = new SqlConnectionStringBuilder
         {
-            DataSource = settings.Server,
+            DataSource = dataSource,
             InitialCatalog = settings.Database,
-            ConnectTimeout = 5,
+            ConnectTimeout = 15,
+            ConnectRetryCount = 0,
             TrustServerCertificate = true,
             Encrypt = false,
             ApplicationName = "ApacsMonitor"
@@ -162,6 +164,18 @@ public sealed class SqlService
         }
 
         return result;
+    }
+
+    private static string NormalizeDataSource(string server)
+    {
+        var value = server.Trim();
+        if (value.StartsWith("tcp:", StringComparison.OrdinalIgnoreCase))
+            return value;
+
+        if (value.Contains(','))
+            return $"tcp:{value}";
+
+        return $"tcp:{value},1433";
     }
 
     private static string BuildFullName(string lastName, string firstName, string middleName) =>
