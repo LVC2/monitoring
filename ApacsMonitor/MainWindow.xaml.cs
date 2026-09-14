@@ -41,6 +41,8 @@ public partial class MainWindow : Window
         _config = _configuration.Load();
         _timer.Interval = TimeSpan.FromSeconds(Math.Max(1, _config.RefreshSeconds));
         SetLanguage(_config.Language);
+        _period = "today";
+        UpdatePeriodButtons();
         _sql.Configure(_config.Database, _config.Password);
         UpdateViewMode();
         await ConnectFromConfigAsync();
