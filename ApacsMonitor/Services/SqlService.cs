@@ -6,6 +6,9 @@ namespace ApacsMonitor.Services;
 
 public sealed class SqlService
 {
+    private readonly Dictionary<int, byte[]?> _photoCache = new();
+    private readonly HashSet<int> _photoLoadFailed = new();
+    private readonly object _photoCacheLock = new();
     private string? _connectionString;
 
     public void Configure(DatabaseSettings settings, string password)
@@ -32,6 +35,12 @@ public sealed class SqlService
         }
 
         _connectionString = builder.ConnectionString;
+
+        lock (_photoCacheLock)
+        {
+            _photoCache.Clear();
+            _photoLoadFailed.Clear();
+        }
     }
 
     public async Task TestConnectionAsync(CancellationToken cancellationToken = default)
@@ -125,39 +134,73 @@ public sealed class SqlService
         if (holderIds.Count == 0)
             return;
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-
-        // Keep well below SQL Server's 2100-parameter limit.
-        foreach (var batch in holderIds.Chunk(1000))
+        List<int> missingIds;
+        lock (_photoCacheLock)
         {
-            var parameterNames = batch.Select((_, index) => $"@Holder{index}").ToArray();
-            var sql = $"""
-                SELECT FID1, FOWNSG
-                FROM dbo.TAPCCARDHOLDER
-                WHERE FID1 IN ({string.Join(", ", parameterNames)});
-                """;
+            missingIds = holderIds
+                .Where(id => !_photoCache.ContainsKey(id) && !_photoLoadFailed.Contains(id))
+                .ToList();
+        }
 
-            await using var command = new SqlCommand(sql, connection);
-            for (var i = 0; i < batch.Length; i++)
-                command.Parameters.Add(parameterNames[i], SqlDbType.Int).Value = batch[i];
+        if (missingIds.Count > 0)
+        {
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
 
-            var photos = new Dictionary<int, byte[]>();
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-            while (await reader.ReadAsync(cancellationToken))
+            // Keep well below SQL Server's 2100-parameter limit.
+            foreach (var batch in missingIds.Chunk(1000))
             {
-                if (reader.IsDBNull(1))
-                    continue;
+                var parameterNames = batch.Select((_, index) => $"@Holder{index}").ToArray();
+                var sql = $"""
+                    SELECT FID1, FOWNSG
+                    FROM dbo.TAPCCARDHOLDER
+                    WHERE FID1 IN ({string.Join(", ", parameterNames)});
+                    """;
 
-                var bytes = (byte[])reader.GetValue(1);
-                if (bytes.Length > 0)
-                    photos[reader.GetInt32(0)] = bytes;
+                await using var command = new SqlCommand(sql, connection);
+                for (var i = 0; i < batch.Length; i++)
+                    command.Parameters.Add(parameterNames[i], SqlDbType.Int).Value = batch[i];
+
+                var foundIds = new HashSet<int>();
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var holderId = reader.GetInt32(0);
+                    foundIds.Add(holderId);
+
+                    byte[]? bytes = null;
+                    if (!reader.IsDBNull(1))
+                    {
+                        var value = reader.GetValue(1);
+                        if (value is byte[] data && data.Length > 0)
+                            bytes = data;
+                    }
+
+                    lock (_photoCacheLock)
+                    {
+                        _photoCache[holderId] = bytes;
+                        if (bytes is null)
+                            _photoLoadFailed.Add(holderId);
+                    }
+                }
+
+                lock (_photoCacheLock)
+                {
+                    foreach (var holderId in batch)
+                    {
+                        if (!foundIds.Contains(holderId))
+                            _photoLoadFailed.Add(holderId);
+                    }
+                }
             }
+        }
 
-            foreach (var item in events)
+        foreach (var item in events)
+        {
+            lock (_photoCacheLock)
             {
-                if (photos.TryGetValue(item.HolderId, out var bytes))
+                if (_photoCache.TryGetValue(item.HolderId, out var bytes))
                     item.PhotoBytes = bytes;
             }
         }
