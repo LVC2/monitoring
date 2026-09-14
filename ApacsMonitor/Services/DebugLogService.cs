@@ -13,7 +13,25 @@ public sealed class DebugLogService
     {
         _enabled = enabled;
         _logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+
+        if (_enabled)
+        {
+            try
+            {
+                Directory.CreateDirectory(_logDirectory);
+            }
+            catch
+            {
+                // Logging must never break application startup.
+            }
+        }
     }
+
+    public string LogDirectory => _logDirectory;
+
+    public string LogFilePath => Path.Combine(
+        _logDirectory,
+        $"apacs-monitor-{DateTime.Now:yyyy-MM-dd}.log");
 
     public void Info(string message) => Write("INFO", message);
 
@@ -37,11 +55,10 @@ public sealed class DebugLogService
         try
         {
             Directory.CreateDirectory(_logDirectory);
-            var path = Path.Combine(_logDirectory, $"apacs-monitor-{DateTime.Now:yyyy-MM-dd}.log");
             var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{level}] {message}{Environment.NewLine}";
 
             lock (_sync)
-                File.AppendAllText(path, line, new UTF8Encoding(false));
+                File.AppendAllText(LogFilePath, line, new UTF8Encoding(false));
         }
         catch
         {
