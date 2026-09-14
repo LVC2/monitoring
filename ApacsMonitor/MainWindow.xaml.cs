@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private bool _initializingLanguage = true;
     private bool _isRefreshing;
     private bool _compactView;
+    private DebugLogService _log = new(false);
 
     public MainWindow()
     {
@@ -42,12 +43,26 @@ public partial class MainWindow : Window
     {
         Loaded -= MainWindow_Loaded;
         _period = "today";
-        _config = _configuration.Load();
+
+        try
+        {
+            _config = _configuration.Load();
+            _log = new DebugLogService(_config.Debug);
+            _log.Info($"Application started. Debug={_config.Debug}, ConfigPath={GetConfigPath()}");
+            _log.Info($"Database settings: Server={_config.Database.Server}, Database={_config.Database.Database}, Authentication={_config.Database.Authentication}, User={_config.Database.UserName}");
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Configuration load failed.", ex);
+            throw;
+        }
+
         _timer.Interval = TimeSpan.FromSeconds(Math.Max(1, _config.RefreshSeconds));
         SetLanguage(_config.Language);
         _period = "today";
         UpdatePeriodButtons();
         _sql.Configure(_config.Database, _config.Password);
+        _log.Info("SQL service configured.");
         UpdateViewMode();
         await ConnectFromConfigAsync();
 
@@ -59,10 +74,12 @@ public partial class MainWindow : Window
     private async Task ConnectFromConfigAsync()
     {
         SetConnectionStatus("Подключение...", "Connecting...", "Bağlanıyor...", "#F59E0B");
+        _log.Info("Testing SQL connection...");
 
         try
         {
             await _sql.TestConnectionAsync();
+            _log.Info("SQL connection successful.");
             SetConnectionStatus("Подключено к БД", "Connected to database", "Veritabanına bağlandı", "#16A34A");
             _timer.Start();
             await RefreshEventsAsync(true);
@@ -70,38 +87,17 @@ public partial class MainWindow : Window
         catch (SqlException ex)
         {
             _timer.Stop();
+            _log.Error("SQL connection failed.", ex);
             SetConnectionStatus("Нет подключения к БД", "Database disconnected", "Veritabanı bağlantısı yok", "#DC2626");
             LastUpdateText.Text = FormatSqlException(ex);
         }
         catch (Exception ex)
         {
             _timer.Stop();
+            _log.Error("Unexpected connection error.", ex);
             SetConnectionStatus("Нет подключения к БД", "Database disconnected", "Veritabanı bağlantısı yok", "#DC2626");
             LastUpdateText.Text = ex.ToString();
         }
-    }
-
-    private static string FormatSqlException(SqlException ex)
-    {
-        var details = new List<string>
-        {
-            ex.Message
-        };
-
-        if (ex.Number != 0)
-            details.Add($"SQL error: {ex.Number}");
-
-        foreach (SqlError error in ex.Errors)
-        {
-            var line = $"[{error.Number}] {error.Message}";
-            if (!details.Contains(line))
-                details.Add(line);
-        }
-
-        if (ex.InnerException is not null)
-            details.Add($"Inner: {ex.InnerException.Message}");
-
-        return string.Join(Environment.NewLine, details);
     }
 
     private async Task RefreshEventsAsync(bool resetPagination)
@@ -113,7 +109,9 @@ public partial class MainWindow : Window
 
         try
         {
+            _log.Info("Reading access events...");
             var events = await _sql.GetRecentEventsAsync(5000);
+            _log.Info($"Access events loaded: {events.Count}.");
             _events.Clear();
             foreach (var item in events)
                 _events.Add(item);
@@ -127,6 +125,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            _log.Error("Access journal read failed.", ex);
             SetConnectionStatus("Ошибка чтения журнала", "Journal read error", "Günlük okuma hatası", "#DC2626");
             LastUpdateText.Text = ex.Message;
         }
@@ -134,6 +133,32 @@ public partial class MainWindow : Window
         {
             _isRefreshing = false;
         }
+    }
+
+    private string GetConfigPath() =>
+        System.IO.Path.Combine(
+            System.IO.Path.GetDirectoryName(typeof(MainWindow).Assembly.Location) ?? AppContext.BaseDirectory,
+            "appsettings.json");
+
+    private static string FormatSqlException(SqlException ex)
+    {
+        var details = new List<string>
+        {
+            ex.Message,
+            $"SQL error: {ex.Number}"
+        };
+
+        foreach (SqlError error in ex.Errors)
+        {
+            var line = $"[{error.Number}] {error.Message}";
+            if (!details.Contains(line))
+                details.Add(line);
+        }
+
+        if (ex.InnerException is not null)
+            details.Add($"Inner: {ex.InnerException}");
+
+        return string.Join(Environment.NewLine, details);
     }
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
@@ -198,6 +223,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            _log.Error("Work time calculation failed.", ex);
             MessageBox.Show(
                 ex.Message,
                 T("Ошибка расчёта времени", "Work time calculation error", "Çalışma süresi hesaplama hatası"),
@@ -381,6 +407,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            _log.Error("Excel export failed.", ex);
             MessageBox.Show(ex.Message, T("Ошибка выгрузки", "Export error", "Dışa aktarma hatası"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -396,7 +423,8 @@ public partial class MainWindow : Window
             Password = _config.Password,
             RefreshSeconds = _config.RefreshSeconds,
             DisplayMode = _config.DisplayMode,
-            Language = language.ToLowerInvariant()
+            Language = language.ToLowerInvariant(),
+            Debug = _config.Debug
         };
 
         SetLanguage(_config.Language);
