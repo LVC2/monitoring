@@ -1,27 +1,24 @@
-# APACS SDK integration
+# APACS integration
 
-The monitor uses the APACS 3000 SDK only for employee photos. The SQL journal remains the source of access events.
+The monitoring application does not require APACS 3000 to be installed on the workstation.
 
-## APACS 7.1 photo chain
+## Architecture
 
-The installed APACS SDK exposes the employee photo as:
+- Access events are read directly from the APACS SQL database.
+- Employee names/cards are joined through `TAPCCARDHOLDERREF` -> `TAPCCARDHOLDER`.
+- Employee photos are also requested directly from SQL by `SqlPhotoService`.
+- APACS COM/SDK is not used by the monitor.
+
+The old SDK photo chain was:
 
 `TApcCardHolder -> TApcCHMainPhoto -> getCurrentSettings() -> binBufPhoto`
 
-The monitoring application does not read `TAPCCARDHOLDER.FOWNSG` as a photo. `FOWNSG` is APACS security-group data.
+It is documented here only as a reference for understanding the APACS data model. The monitor no longer depends on that chain.
 
-## Runtime requirements
+## Photo loading
 
-- APACS 3000 7.1 must be installed on the machine running the monitor.
-- The APACS COM SDK is registered as 32-bit COM, so `ApacsMonitor` is built for x86.
-- `APACS 3000 Server` must be available for SDK sessions.
-- The default SDK login is `inst` with an empty password, matching the installed APACS C++ SDK sample.
-- If the site uses different SDK credentials, set these environment variables for the monitor process:
-  - `APACS_SDK_LOGIN`
-  - `APACS_SDK_PASSWORD`
+APACS database revisions can use different physical names for the photo object/blob column. `SqlPhotoService` therefore inspects `INFORMATION_SCHEMA.COLUMNS`, finds the most likely photo/blob table and holder-reference column, and then loads photos in one SQL query for the visible holder IDs.
 
-## Performance behavior
+Photos are cached by `HolderId`. Loading is asynchronous, so the event journal is returned without waiting for image decoding.
 
-Photo loading is asynchronous and does not block SQL journal refreshes. Photos are cached by `FSAHOLDER1`/`HolderId`, and only the first visible event range is requested during a refresh. `EventRecord.PhotoBytes` raises `PropertyChanged` when the SDK finishes loading a photo, so the WPF image updates without rebuilding the journal.
-
-If the APACS COM SDK is unavailable, the monitor continues to work from SQL and temporarily suppresses repeated SDK connection attempts.
+If the database revision does not expose a directly joinable photo object, the journal still works normally; the photo loader simply leaves `PhotoBytes` empty.
