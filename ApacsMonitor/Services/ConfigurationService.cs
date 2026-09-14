@@ -51,23 +51,17 @@ public sealed class ConfigurationService
     private static string ResolvePath()
     {
 #if DEBUG
-        var currentPath = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
-        if (File.Exists(currentPath))
-            return currentPath;
-
+        // Visual Studio Debug: always use the project-local configuration.
+        // AppContext.BaseDirectory = ...\\ApacsMonitor\\bin\\Debug\\net10.0-windows\\
         var projectPath = AppContext.BaseDirectory;
-        for (var i = 0; i < 4; i++)
-        {
+        for (var i = 0; i < 3; i++)
             projectPath = Directory.GetParent(projectPath)?.FullName ?? projectPath;
-        }
 
-        var localProjectPath = Path.Combine(projectPath, "appsettings.json");
-        if (File.Exists(localProjectPath))
-            return localProjectPath;
+        return Path.Combine(projectPath, "appsettings.json");
+#else
+        // Published/Release application: configuration sits next to the executable.
+        return Path.Combine(AppContext.BaseDirectory, "appsettings.json");
 #endif
-
-        var basePath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        return basePath;
     }
 
     private static string GetString(JsonElement element, string property, string fallback = "") =>
