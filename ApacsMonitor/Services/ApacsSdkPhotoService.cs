@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using ApacsMonitor.Models;
@@ -32,6 +33,8 @@ internal sealed class ApacsSdkPhotoService
         if (candidates.Count == 0)
             return;
 
+        Debug.WriteLine($"[APACS PHOTO] Кандидатов: {candidates.Count}. Запуск SDK.");
+
         await _loadGate.WaitAsync(cancellationToken);
         try
         {
@@ -41,9 +44,10 @@ internal sealed class ApacsSdkPhotoService
 
             await Task.Run(() => LoadPhotos(candidates, cancellationToken), cancellationToken);
         }
-        catch
+        catch (Exception ex)
         {
-            // A missing/temporarily unavailable SDK must not break SQL monitoring.
+            Debug.WriteLine($"[APACS PHOTO] Общая ошибка: {ex.GetType().FullName}: {ex.Message}");
+            Debug.WriteLine(ex.ToString());
             _disabledUntilUtc = DateTime.UtcNow.AddSeconds(30);
         }
         finally
@@ -103,9 +107,19 @@ internal sealed class ApacsSdkPhotoService
 
         try
         {
+            Debug.WriteLine("[APACS PHOTO] Создание ApcSrvSDK.TApcConnection...");
             connection = CreateComObject("ApcSrvSDK.TApcConnection");
+
+            Debug.WriteLine($"[APACS PHOTO] createSession: login={GetLogin()}, password={(string.IsNullOrEmpty(GetPassword()) ? "<empty>" : "<set>")}");
             session = InvokeOutObject(connection, "createSession", GetLogin(), GetPassword());
-            server = InvokeOutObject(session, "getServer");
+            Debug.WriteLine("[APACS PHOTO] createSession успешно.");
+
+            // getServer() возвращает объект напрямую. Это НЕ out-параметр.
+            server = InvokeMethod(session, "getServer");
+            if (server is null)
+                throw new InvalidOperationException("APACS SDK не вернул серверную сессию.");
+            Debug.WriteLine("[APACS PHOTO] getServer успешно.");
+
             _disabledUntilUtc = DateTime.MinValue;
 
             foreach (var item in candidates)
@@ -114,6 +128,7 @@ internal sealed class ApacsSdkPhotoService
 
                 try
                 {
+                    Debug.WriteLine($"[APACS PHOTO] HolderId={item.HolderId}, {item.LastName} {item.FirstName} {item.MiddleName}");
                     var bytes = LoadPhoto(server, item);
                     lock (_cacheLock)
                     {
@@ -121,13 +136,23 @@ internal sealed class ApacsSdkPhotoService
                         if (bytes is null)
                             _photoLoadFailed.Add(item.HolderId);
                     }
+
+                    Debug.WriteLine($"[APACS PHOTO] HolderId={item.HolderId}: фото {(bytes is null ? "не найдено" : $"получено, {bytes.Length} байт")}");
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Debug.WriteLine($"[APACS PHOTO] HolderId={item.HolderId}: {ex.GetType().FullName}: {ex.Message}");
+                    Debug.WriteLine(ex.ToString());
                     lock (_cacheLock)
                         _photoLoadFailed.Add(item.HolderId);
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[APACS PHOTO] Ошибка инициализации SDK: {ex.GetType().FullName}: {ex.Message}");
+            Debug.WriteLine(ex.ToString());
+            throw;
         }
         finally
         {
@@ -159,6 +184,7 @@ internal sealed class ApacsSdkPhotoService
                 InvokeMethod(filter, "addCondition", middle);
 
             var holders = ToObjectArray(InvokeOutObject(server, "getObjectsByFilter", "TApcCardHolder", filter));
+            Debug.WriteLine($"[APACS PHOTO] Найдено CardHolder: {holders.Length}");
             if (holders.Length == 0)
                 return null;
 
@@ -166,6 +192,7 @@ internal sealed class ApacsSdkPhotoService
             try
             {
                 var photos = ToObjectArray(InvokeOutObject(holder, "getChildrenObjsByTypes", new[] { "TApcCHMainPhoto" }));
+                Debug.WriteLine($"[APACS PHOTO] TApcCHMainPhoto: {photos.Length}");
                 if (photos.Length == 0)
                     return null;
 
