@@ -63,6 +63,7 @@ public partial class MainWindow : Window
         SetLanguage(_config.Language);
         _period = "today";
         UpdatePeriodButtons();
+        _sql.Log = _log.Info;
         _sql.Configure(_config.Database, _config.Password);
         _log.Info("SQL service configured.");
         UpdateViewMode();
@@ -150,7 +151,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _log.Error("Access event read failed.", ex);
+            _log.Error("Journal read failed.", ex);
             SetConnectionStatus("Ошибка чтения журнала", "Journal read error", "Günlük okuma hatası", "#DC2626");
             LastUpdateText.Text = ex.Message;
         }
@@ -420,7 +421,8 @@ public partial class MainWindow : Window
             Password = _config.Password,
             RefreshSeconds = _config.RefreshSeconds,
             DisplayMode = _config.DisplayMode,
-            Language = language.ToLowerInvariant()
+            Language = language.ToLowerInvariant(),
+            Debug = _config.Debug
         };
 
         SetLanguage(_config.Language);
