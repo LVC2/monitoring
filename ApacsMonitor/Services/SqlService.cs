@@ -250,37 +250,22 @@ internal sealed class ApacsSdkPhotoService
 
     public async Task LoadPhotosAsync(IReadOnlyList<EventRecord> events, CancellationToken cancellationToken)
     {
-        if (events.Count == 0 || DateTime.UtcNow < _disabledUntilUtc)
+        if (events.Count == 0)
             return;
 
-        var candidates = events
-            .Where(x => x.HolderId > 0 &&
-                        !string.IsNullOrWhiteSpace(x.LastName) &&
-                        !string.IsNullOrWhiteSpace(x.FirstName))
-            .GroupBy(x => x.HolderId)
-            .Select(x => x.First())
-            .ToList();
+        ApplyCachedPhotos(events);
 
-        lock (_cacheLock)
-        {
-            candidates = candidates
-                .Where(x => !_photoCache.ContainsKey(x.HolderId) && !_photoLoadFailed.Contains(x.HolderId))
-                .ToList();
-        }
+        if (DateTime.UtcNow < _disabledUntilUtc)
+            return;
 
+        var candidates = GetMissingCandidates(events);
         if (candidates.Count == 0)
             return;
 
         await _loadGate.WaitAsync(cancellationToken);
         try
         {
-            lock (_cacheLock)
-            {
-                candidates = candidates
-                    .Where(x => !_photoCache.ContainsKey(x.HolderId) && !_photoLoadFailed.Contains(x.HolderId))
-                    .ToList();
-            }
-
+            candidates = GetMissingCandidates(events);
             if (candidates.Count == 0 || DateTime.UtcNow < _disabledUntilUtc)
                 return;
 
@@ -296,14 +281,7 @@ internal sealed class ApacsSdkPhotoService
             _loadGate.Release();
         }
 
-        foreach (var item in events)
-        {
-            lock (_cacheLock)
-            {
-                if (_photoCache.TryGetValue(item.HolderId, out var bytes))
-                    item.PhotoBytes = bytes;
-            }
-        }
+        ApplyCachedPhotos(events);
     }
 
     public void ClearCache()
@@ -317,6 +295,36 @@ internal sealed class ApacsSdkPhotoService
         _disabledUntilUtc = DateTime.MinValue;
     }
 
+    private List<EventRecord> GetMissingCandidates(IReadOnlyList<EventRecord> events)
+    {
+        var candidates = events
+            .Where(x => x.HolderId > 0 &&
+                        !string.IsNullOrWhiteSpace(x.LastName) &&
+                        !string.IsNullOrWhiteSpace(x.FirstName))
+            .GroupBy(x => x.HolderId)
+            .Select(x => x.First())
+            .ToList();
+
+        lock (_cacheLock)
+        {
+            return candidates
+                .Where(x => !_photoCache.ContainsKey(x.HolderId) && !_photoLoadFailed.Contains(x.HolderId))
+                .ToList();
+        }
+    }
+
+    private void ApplyCachedPhotos(IReadOnlyList<EventRecord> events)
+    {
+        foreach (var item in events)
+        {
+            lock (_cacheLock)
+            {
+                if (_photoCache.TryGetValue(item.HolderId, out var bytes))
+                    item.PhotoBytes = bytes;
+            }
+        }
+    }
+
     private void LoadPhotos(IReadOnlyList<EventRecord> candidates, CancellationToken cancellationToken)
     {
         object? connection = null;
@@ -328,6 +336,7 @@ internal sealed class ApacsSdkPhotoService
             connection = CreateComObject("ApcSrvSDK.TApcConnection");
             session = InvokeOutObject(connection, "createSession", GetLogin(), GetPassword());
             server = InvokeOutObject(session, "getServer");
+            _disabledUntilUtc = DateTime.MinValue;
 
             foreach (var item in candidates)
             {
