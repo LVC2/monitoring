@@ -50,10 +50,6 @@ public sealed class ConfigurationService
 
     private static string ResolvePath()
     {
-        var basePath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        if (File.Exists(basePath))
-            return basePath;
-
 #if DEBUG
         var currentPath = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
         if (File.Exists(currentPath))
@@ -70,6 +66,7 @@ public sealed class ConfigurationService
             return localProjectPath;
 #endif
 
+        var basePath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         return basePath;
     }
 
