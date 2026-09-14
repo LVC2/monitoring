@@ -27,9 +27,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _initializingLanguage = false;
+        _period = "today";
         EmployeeCards.ItemsSource = _events;
         CompactEventsList.ItemsSource = _events;
+        UpdatePeriodButtons();
+        _initializingLanguage = false;
         _timer = new DispatcherTimer();
         _timer.Tick += async (_, _) => await RefreshEventsAsync(false);
         Loaded += MainWindow_Loaded;
@@ -38,6 +40,7 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         Loaded -= MainWindow_Loaded;
+        _period = "today";
         _config = _configuration.Load();
         _timer.Interval = TimeSpan.FromSeconds(Math.Max(1, _config.RefreshSeconds));
         SetLanguage(_config.Language);
@@ -46,6 +49,10 @@ public partial class MainWindow : Window
         _sql.Configure(_config.Database, _config.Password);
         UpdateViewMode();
         await ConnectFromConfigAsync();
+
+        _period = "today";
+        UpdatePeriodButtons();
+        ApplyFilters(false);
     }
 
     private async Task ConnectFromConfigAsync()
