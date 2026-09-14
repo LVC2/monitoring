@@ -9,6 +9,8 @@ public sealed class SqlService
     private readonly SqlPhotoService _photos = new();
     private string? _connectionString;
 
+    public Action<string>? Log { get; set; }
+
     public void Configure(DatabaseSettings settings, string password)
     {
         var dataSource = NormalizeDataSource(settings.Server);
@@ -36,6 +38,7 @@ public sealed class SqlService
 
         _connectionString = builder.ConnectionString;
         _photos.Configure(_connectionString);
+        _photos.Log = message => Log?.Invoke(message);
     }
 
     public async Task TestConnectionAsync(CancellationToken cancellationToken = default)
@@ -73,7 +76,15 @@ public sealed class SqlService
         var result = await ExecuteEventsQueryAsync(sql, command =>
             command.Parameters.Add("@Limit", SqlDbType.Int).Value = Math.Max(1, limit), cancellationToken);
 
-        _ = AttachEmployeePhotosAsync(result.Take(Math.Min(100, result.Count)).ToList());
+        try
+        {
+            await _photos.LoadPhotosAsync(result.Take(Math.Min(100, result.Count)).ToList(), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Log?.Invoke($"Photo loading failed; events will remain available. {ex}");
+        }
+
         return result;
     }
 
@@ -109,18 +120,6 @@ public sealed class SqlService
             command.Parameters.Add("@From", SqlDbType.DateTime).Value = from;
             command.Parameters.Add("@To", SqlDbType.DateTime).Value = to;
         }, cancellationToken);
-    }
-
-    private async Task AttachEmployeePhotosAsync(IReadOnlyList<EventRecord> events)
-    {
-        try
-        {
-            await _photos.LoadPhotosAsync(events, CancellationToken.None);
-        }
-        catch
-        {
-            // A missing/unsupported photo table must never stop the event journal.
-        }
     }
 
     private async Task<List<EventRecord>> ExecuteEventsQueryAsync(
