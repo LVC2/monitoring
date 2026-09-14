@@ -9,10 +9,12 @@ public sealed class DebugLogService
     private readonly string _logDirectory;
     private readonly object _sync = new();
 
-    public DebugLogService(bool enabled)
+    public DebugLogService(bool enabled, string? directory = null)
     {
         _enabled = enabled;
-        _logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+        _logDirectory = Path.Combine(
+            string.IsNullOrWhiteSpace(directory) ? AppContext.BaseDirectory : directory,
+            "logs");
 
         if (_enabled)
         {
