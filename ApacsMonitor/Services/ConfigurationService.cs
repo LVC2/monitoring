@@ -71,7 +71,7 @@ public sealed class ConfigurationService
             : fallback;
 
     private static int GetInt(JsonElement element, string property, int fallback) =>
-        element.ValueKind != JsonValueKind.Undefined && element.TryGetProperty(property, property, out var value) && value.TryGetInt32(out var result)
+        element.ValueKind != JsonValueKind.Undefined && element.TryGetProperty(property, out var value) && value.TryGetInt32(out var result)
             ? result
             : fallback;
 
