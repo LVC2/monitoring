@@ -39,7 +39,8 @@ public sealed class ConfigurationService
                 Password = GetString(database, "Password"),
                 RefreshSeconds = Math.Max(1, GetInt(monitoring, "RefreshSeconds", 2)),
                 DisplayMode = NormalizeDisplayMode(GetString(monitoring, "DisplayMode", "all")),
-                Language = NormalizeLanguage(GetString(root, "Language", "ru"))
+                Language = NormalizeLanguage(GetString(root, "Language", "ru")),
+                Debug = GetInt(root, "Debug", 0) == 1
             };
         }
         catch (Exception ex)
@@ -70,7 +71,7 @@ public sealed class ConfigurationService
             : fallback;
 
     private static int GetInt(JsonElement element, string property, int fallback) =>
-        element.ValueKind != JsonValueKind.Undefined && element.TryGetProperty(property, out var value) && value.TryGetInt32(out var result)
+        element.ValueKind != JsonValueKind.Undefined && element.TryGetProperty(property, property, out var value) && value.TryGetInt32(out var result)
             ? result
             : fallback;
 
@@ -98,4 +99,5 @@ public sealed class AppConfiguration
     public int RefreshSeconds { get; init; } = 2;
     public string DisplayMode { get; init; } = "all";
     public string Language { get; init; } = "ru";
+    public bool Debug { get; init; }
 }
