@@ -43,10 +43,12 @@ public partial class MainWindow : Window
         SetLanguage(_config.Language);
         _sql.Configure(_config.Database, _config.Password);
         UpdateViewMode();
-        await ConnectFromConfigAsync();
+
+        if (!await ConnectFromConfigAsync())
+            await OpenConnectionWindowAsync();
     }
 
-    private async Task ConnectFromConfigAsync()
+    private async Task<bool> ConnectFromConfigAsync()
     {
         SetConnectionStatus("Подключение...", "Connecting...", "Bağlanıyor...", "#F59E0B");
 
@@ -56,13 +58,38 @@ public partial class MainWindow : Window
             SetConnectionStatus("Подключено к БД", "Connected to database", "Veritabanına bağlandı", "#16A34A");
             _timer.Start();
             await RefreshEventsAsync(true);
+            return true;
         }
         catch (Exception ex)
         {
             _timer.Stop();
             SetConnectionStatus("Нет подключения к БД", "Database disconnected", "Veritabanı bağlantısı yok", "#DC2626");
             LastUpdateText.Text = ex.Message;
+            return false;
         }
+    }
+
+    private async Task OpenConnectionWindowAsync()
+    {
+        var dialog = new ConnectionWindow(_config.Database, _config.Password)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        _config = new AppConfiguration
+        {
+            Database = dialog.Settings,
+            Password = dialog.Password,
+            RefreshSeconds = _config.RefreshSeconds,
+            DisplayMode = _config.DisplayMode,
+            Language = _config.Language
+        };
+
+        _sql.Configure(_config.Database, _config.Password);
+        await ConnectFromConfigAsync();
     }
 
     private async Task RefreshEventsAsync(bool resetPagination)
@@ -133,11 +160,7 @@ public partial class MainWindow : Window
 
             if (summary is null)
             {
-                MessageBox.Show(
-                    T("Не удалось рассчитать время на работе для сотрудника.", "Unable to calculate work time for this employee.", "Bu çalışan için çalışma süresi hesaplanamadı."),
-                    T("Время сотрудника", "Employee work time", "Çalışanın çalışma süresi"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                MessageBox.Show(T("Не удалось рассчитать время на работе для сотрудника.", "Unable to calculate work time for this employee.", "Bu çalışan için çalışma süresi hesaplanamadı."), T("Время сотрудника", "Employee work time", "Çalışanın çalışma süresi"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -151,19 +174,11 @@ public partial class MainWindow : Window
                 $"{T("Месяц", "Month", "Ay")}: {summary.MonthText}"
             });
 
-            MessageBox.Show(
-                message,
-                T("Время сотрудника", "Employee work time", "Çalışanın çalışma süresi"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            MessageBox.Show(message, T("Время сотрудника", "Employee work time", "Çalışanın çalışma süresi"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show(
-                ex.Message,
-                T("Ошибка расчёта времени", "Work time calculation error", "Çalışma süresi hesaplama hatası"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, T("Ошибка расчёта времени", "Work time calculation error", "Çalışma süresi hesaplama hatası"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -181,36 +196,25 @@ public partial class MainWindow : Window
 
         switch (_period)
         {
-            case "today":
-                from = today;
-                break;
-            case "week":
-                from = today.AddDays(-6);
-                break;
-            case "month":
-                from = today.AddMonths(-1).Date;
-                break;
+            case "today": from = today; break;
+            case "week": from = today.AddDays(-6); break;
+            case "month": from = today.AddMonths(-1).Date; break;
             case "custom":
                 from = FromDatePicker.SelectedDate?.Date ?? today;
                 to = (ToDatePicker.SelectedDate?.Date ?? today).AddDays(1);
                 break;
-            default:
-                from = DateTime.MinValue;
-                to = DateTime.MaxValue;
-                break;
+            default: from = DateTime.MinValue; to = DateTime.MaxValue; break;
         }
 
         IEnumerable<EventRecord> query = _events.Where(x => x.RealTime >= from && x.RealTime < to);
-
         var search = SearchTextBox.Text.Trim();
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(x =>
-                x.FullName.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-                x.CardNumber.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                x.Location.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-                x.Direction.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-                x.ReaderName.Contains(search, StringComparison.CurrentCultureIgnoreCase));
+            query = query.Where(x => x.FullName.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                                     x.CardNumber.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                                     x.Location.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                                     x.Direction.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                                     x.ReaderName.Contains(search, StringComparison.CurrentCultureIgnoreCase));
         }
 
         query = _config.DisplayMode switch
@@ -225,9 +229,7 @@ public partial class MainWindow : Window
 
     private void ApplyFilters(bool resetPagination = false)
     {
-        if (resetPagination)
-            _visibleCount = PageSize;
-
+        if (resetPagination) _visibleCount = PageSize;
         var result = GetFilteredEvents();
         var visibleItems = result.Take(_visibleCount).ToList();
         EmployeeCards.ItemsSource = visibleItems;
@@ -237,50 +239,16 @@ public partial class MainWindow : Window
         UpdateSearchHint();
     }
 
-    private void UpdateSearchHint()
-    {
-        SearchHint.Visibility = string.IsNullOrWhiteSpace(SearchTextBox.Text)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
-    private void ShowMoreButton_Click(object sender, RoutedEventArgs e)
-    {
-        _visibleCount += PageSize;
-        ApplyFilters(false);
-    }
-
-    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        ApplyFilters(false);
-    }
-
+    private void UpdateSearchHint() => SearchHint.Visibility = string.IsNullOrWhiteSpace(SearchTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+    private void ShowMoreButton_Click(object sender, RoutedEventArgs e) { _visibleCount += PageSize; ApplyFilters(false); }
+    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilters(false);
     private void AllButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("all");
     private void TodayButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("today");
     private void WeekButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("week");
     private void MonthButton_Click(object sender, RoutedEventArgs e) => SelectPeriod("month");
-
-    private void PeriodButton_Click(object sender, RoutedEventArgs e)
-    {
-        _period = "custom";
-        PeriodPanel.Visibility = Visibility.Visible;
-        UpdatePeriodButtons();
-        ApplyFilters(false);
-    }
-
-    private void CustomDateChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_period == "custom")
-            ApplyFilters(false);
-    }
-
-    private void SelectPeriod(string period)
-    {
-        _period = period;
-        PeriodPanel.Visibility = Visibility.Collapsed;
-        UpdatePeriodButtons();
-        ApplyFilters(false);
-    }
+    private void PeriodButton_Click(object sender, RoutedEventArgs e) { _period = "custom"; PeriodPanel.Visibility = Visibility.Visible; UpdatePeriodButtons(); ApplyFilters(false); }
+    private void CustomDateChanged(object sender, SelectionChangedEventArgs e) { if (_period == "custom") ApplyFilters(false); }
+    private void SelectPeriod(string period) { _period = period; PeriodPanel.Visibility = Visibility.Collapsed; UpdatePeriodButtons(); ApplyFilters(false); }
 
     private void UpdatePeriodButtons()
     {
@@ -294,112 +262,37 @@ public partial class MainWindow : Window
     private async void ExportButton_Click(object sender, RoutedEventArgs e)
     {
         var rows = GetFilteredEvents();
-        if (rows.Count == 0)
-        {
-            MessageBox.Show(T("Нет данных для выгрузки.", "There is no data to export.", "Dışa aktarılacak veri yok."),
-                T("Выгрузка", "Export", "Dışa aktarma"), MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        var dialog = new SaveFileDialog
-        {
-            Filter = "Excel (*.xlsx)|*.xlsx",
-            FileName = $"apacs_access_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx",
-            AddExtension = true
-        };
-
-        if (dialog.ShowDialog() != true)
-            return;
-
+        if (rows.Count == 0) { MessageBox.Show(T("Нет данных для выгрузки.", "There is no data to export.", "Dışa aktarılacak veri yok."), T("Выгрузка", "Export", "Dışa aktarma"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        var dialog = new SaveFileDialog { Filter = "Excel (*.xlsx)|*.xlsx", FileName = $"apacs_access_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx", AddExtension = true };
+        if (dialog.ShowDialog() != true) return;
         try
         {
             using var workbook = new XLWorkbook();
             var sheet = workbook.Worksheets.Add("Доступ");
-            sheet.Cell(1, 1).Value = T("Время", "Time", "Saat");
-            sheet.Cell(1, 2).Value = T("Сотрудник", "Employee", "Çalışan");
-            sheet.Cell(1, 3).Value = T("Карта", "Card", "Kart");
-            sheet.Cell(1, 4).Value = T("Место", "Location", "Konum");
-            sheet.Cell(1, 5).Value = T("Направление", "Direction", "Yön");
-            sheet.Cell(1, 6).Value = T("Считыватель", "Reader", "Okuyucu");
-
-            for (var i = 0; i < rows.Count; i++)
-            {
-                var row = i + 2;
-                var item = rows[i];
-                sheet.Cell(row, 1).Value = item.RealTime;
-                sheet.Cell(row, 1).Style.DateFormat.Format = "dd.MM.yyyy HH:mm:ss";
-                sheet.Cell(row, 2).Value = item.FullName;
-                sheet.Cell(row, 3).Value = item.CardNumber;
-                sheet.Cell(row, 4).Value = item.Location;
-                sheet.Cell(row, 5).Value = item.Direction;
-                sheet.Cell(row, 6).Value = item.ReaderName;
-            }
-
-            sheet.Row(1).Style.Font.Bold = true;
-            sheet.SheetView.FreezeRows(1);
-            sheet.Columns().AdjustToContents();
-            workbook.SaveAs(dialog.FileName);
+            sheet.Cell(1, 1).Value = T("Время", "Time", "Saat"); sheet.Cell(1, 2).Value = T("Сотрудник", "Employee", "Çalışan"); sheet.Cell(1, 3).Value = T("Карта", "Card", "Kart"); sheet.Cell(1, 4).Value = T("Место", "Location", "Konum"); sheet.Cell(1, 5).Value = T("Направление", "Direction", "Yön"); sheet.Cell(1, 6).Value = T("Считыватель", "Reader", "Okuyucu");
+            for (var i = 0; i < rows.Count; i++) { var row = i + 2; var item = rows[i]; sheet.Cell(row, 1).Value = item.RealTime; sheet.Cell(row, 1).Style.DateFormat.Format = "dd.MM.yyyy HH:mm:ss"; sheet.Cell(row, 2).Value = item.FullName; sheet.Cell(row, 3).Value = item.CardNumber; sheet.Cell(row, 4).Value = item.Location; sheet.Cell(row, 5).Value = item.Direction; sheet.Cell(row, 6).Value = item.ReaderName; }
+            sheet.Row(1).Style.Font.Bold = true; sheet.SheetView.FreezeRows(1); sheet.Columns().AdjustToContents(); workbook.SaveAs(dialog.FileName);
         }
-        catch (Exception ex)
-        {
-            MessageBox.Show(ex.Message, T("Ошибка выгрузки", "Export error", "Dışa aktarma hatası"), MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        catch (Exception ex) { MessageBox.Show(ex.Message, T("Ошибка выгрузки", "Export error", "Dışa aktarma hatası"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_initializingLanguage || LanguageComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not string language)
-            return;
-
-        _config = new AppConfiguration
-        {
-            Database = _config.Database,
-            Password = _config.Password,
-            RefreshSeconds = _config.RefreshSeconds,
-            DisplayMode = _config.DisplayMode,
-            Language = language.ToLowerInvariant()
-        };
-
+        if (_initializingLanguage || LanguageComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not string language) return;
+        _config = new AppConfiguration { Database = _config.Database, Password = _config.Password, RefreshSeconds = _config.RefreshSeconds, DisplayMode = _config.DisplayMode, Language = language.ToLowerInvariant() };
         SetLanguage(_config.Language);
     }
 
     private void SetLanguage(string language)
     {
         _initializingLanguage = true;
-        LanguageComboBox.SelectedIndex = language switch
-        {
-            "en" => 1,
-            "tr" => 2,
-            _ => 0
-        };
+        LanguageComboBox.SelectedIndex = language switch { "en" => 1, "tr" => 2, _ => 0 };
         _initializingLanguage = false;
-
         Title = T("APACS Monitor — Журнал доступа", "APACS Monitor — Access Journal", "APACS Monitor — Erişim Günlüğü");
         SubtitleText.Text = T("Журнал доступа сотрудников", "Employee access journal", "Çalışan erişim günlüğü");
         SearchHint.Text = T("Поиск по ФИО или номеру карты", "Search by name or card number", "Ad veya kart numarasına göre ara");
-        AllButton.Content = T("Все", "All", "Tümü");
-        TodayButton.Content = T("Сегодня", "Today", "Bugün");
-        WeekButton.Content = T("Неделя", "Week", "Hafta");
-        MonthButton.Content = T("Месяц", "Month", "Ay");
-        PeriodButton.Content = T("Период", "Period", "Dönem");
-        RefreshButton.Content = T("↻  Обновить", "↻  Refresh", "↻  Yenile");
-        ExportButton.Content = T("⇩  Выгрузить Excel", "⇩  Export Excel", "⇩  Excel'e aktar");
-        ShowMoreButton.Content = T("Показать ещё 50", "Show 50 more", "50 daha göster");
-        FromText.Text = T("От", "From", "Başlangıç");
-        ToText.Text = T("До", "To", "Bitiş");
-        UpdateViewMode();
-        UpdatePeriodButtons();
-        ApplyFilters(false);
+        AllButton.Content = T("Все", "All", "Tümü"); TodayButton.Content = T("Сегодня", "Today", "Bugün"); WeekButton.Content = T("Неделя", "Week", "Hafta"); MonthButton.Content = T("Месяц", "Month", "Ay"); PeriodButton.Content = T("Период", "Period", "Dönem"); RefreshButton.Content = T("↻  Обновить", "↻  Refresh", "↻  Yenile"); ExportButton.Content = T("⇩  Выгрузить Excel", "⇩  Export Excel", "⇩  Excel'e aktar"); ShowMoreButton.Content = T("Показать ещё 50", "Show 50 more", "50 daha göster"); FromText.Text = T("От", "From", "Başlangıç"); ToText.Text = T("До", "To", "Bitiş"); UpdateViewMode(); UpdatePeriodButtons(); ApplyFilters(false);
     }
 
-    private string T(string ru, string en, string tr)
-    {
-        var language = _config.Language?.ToLowerInvariant() ?? "ru";
-        return language switch
-        {
-            "en" => en,
-            "tr" => tr,
-            _ => ru
-        };
-    }
+    private string T(string ru, string en, string tr) => (_config.Language?.ToLowerInvariant() ?? "ru") switch { "en" => en, "tr" => tr, _ => ru };
 }
