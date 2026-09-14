@@ -6,7 +6,7 @@ namespace ApacsMonitor.Services;
 
 public sealed class ConfigurationService
 {
-    private readonly string _path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+    private readonly string _path = ResolvePath();
 
     public AppConfiguration Load()
     {
@@ -46,6 +46,31 @@ public sealed class ConfigurationService
         {
             throw new InvalidOperationException($"Не удалось прочитать конфигурацию: {_path}\n{ex.Message}", ex);
         }
+    }
+
+    private static string ResolvePath()
+    {
+        var basePath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        if (File.Exists(basePath))
+            return basePath;
+
+#if DEBUG
+        var currentPath = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
+        if (File.Exists(currentPath))
+            return currentPath;
+
+        var projectPath = AppContext.BaseDirectory;
+        for (var i = 0; i < 4; i++)
+        {
+            projectPath = Directory.GetParent(projectPath)?.FullName ?? projectPath;
+        }
+
+        var localProjectPath = Path.Combine(projectPath, "appsettings.json");
+        if (File.Exists(localProjectPath))
+            return localProjectPath;
+#endif
+
+        return basePath;
     }
 
     private static string GetString(JsonElement element, string property, string fallback = "") =>
