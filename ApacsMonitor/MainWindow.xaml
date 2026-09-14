@@ -316,7 +316,7 @@
                 <ListView x:Name="CompactEventsList" BorderThickness="0" Background="Transparent" ItemContainerStyle="{StaticResource CompactListItemStyle}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListView.View>
                         <GridView>
-                            <GridViewColumn Header="Время" Width="165" DisplayMemberBinding="{Binding RealTime, StringFormat='{}{0:dd.MM.yyyy HH:mm:ss}'}/>
+                            <GridViewColumn Header="Время" Width="165" DisplayMemberBinding="{Binding RealTime, StringFormat='{}{0:dd.MM.yyyy HH:mm:ss}'}"/>
                             <GridViewColumn Header="Сотрудник" Width="290" DisplayMemberBinding="{Binding FullName}"/>
                             <GridViewColumn Header="Карта" Width="120" DisplayMemberBinding="{Binding CardNumber}"/>
                             <GridViewColumn Header="Место" Width="210" DisplayMemberBinding="{Binding Location}"/>
