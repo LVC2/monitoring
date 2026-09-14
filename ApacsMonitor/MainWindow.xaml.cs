@@ -48,7 +48,7 @@ public partial class MainWindow : Window
         {
             _config = _configuration.Load();
             _log = new DebugLogService(_config.Debug);
-            _log.Info($"Application started. Debug={_config.Debug}, ConfigPath={GetConfigPath()}");
+            _log.Info($"Application started. Debug={_config.Debug}, ConfigPath={_configuration.Path}");
             _log.Info($"Database settings: Server={_config.Database.Server}, Database={_config.Database.Database}, Authentication={_config.Database.Authentication}, User={_config.Database.UserName}");
         }
         catch (Exception ex)
@@ -134,11 +134,6 @@ public partial class MainWindow : Window
             _isRefreshing = false;
         }
     }
-
-    private string GetConfigPath() =>
-        System.IO.Path.Combine(
-            System.IO.Path.GetDirectoryName(typeof(MainWindow).Assembly.Location) ?? AppContext.BaseDirectory,
-            "appsettings.json");
 
     private static string FormatSqlException(SqlException ex)
     {
