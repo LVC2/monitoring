@@ -10,6 +10,8 @@ public sealed class EventRecord
     public string Direction { get; init; } = "";
     public string ReaderName { get; init; } = "";
     public string RawObjectName { get; init; } = "";
+    public int HolderId { get; init; }
+    public byte[]? PhotoBytes { get; set; }
     public int EventType { get; init; }
     public int SekId0 { get; init; }
     public int SekId1 { get; init; }
