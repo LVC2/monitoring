@@ -14,6 +14,8 @@ public sealed class SqlPhotoService
     private PhotoSchema? _schema;
     private readonly Dictionary<int, byte[]> _cache = new();
 
+    public Action<string>? Log { get; set; }
+
     public void Configure(string connectionString)
     {
         _connectionString = connectionString;
@@ -30,24 +32,38 @@ public sealed class SqlPhotoService
 
         var holderIds = events.Select(x => x.HolderId).Where(x => x > 0).Distinct().ToArray();
         if (holderIds.Length == 0)
+        {
+            Log?.Invoke("Photo load skipped: events contain no positive HolderId values.");
             return;
+        }
 
         await using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         _schema ??= await DiscoverSchemaAsync(connection, cancellationToken);
         if (_schema is null)
+        {
+            Log?.Invoke("Photo schema not found in APACS database.");
             return;
+        }
+
+        Log?.Invoke($"Photo schema: dbo.{_schema.TableName}, holder={_schema.HolderIdColumn}, photo={_schema.PhotoColumn}.");
 
         var missing = holderIds.Where(id => !_cache.ContainsKey(id)).ToArray();
         if (missing.Length > 0)
             await LoadMissingAsync(connection, _schema, missing, cancellationToken);
 
+        var attached = 0;
         foreach (var item in events)
         {
             if (_cache.TryGetValue(item.HolderId, out var bytes) && bytes.Length > 0)
+            {
                 item.PhotoBytes = bytes;
+                attached++;
+            }
         }
+
+        Log?.Invoke($"Photos attached: {attached} of {events.Count} events; cache entries={_cache.Count}.");
     }
 
     private async Task LoadMissingAsync(SqlConnection connection, PhotoSchema schema, IReadOnlyList<int> holderIds, CancellationToken cancellationToken)
@@ -69,6 +85,7 @@ public sealed class SqlPhotoService
             """;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var loaded = 0;
         while (await reader.ReadAsync(cancellationToken))
         {
             if (reader.IsDBNull(0) || reader.IsDBNull(1))
@@ -77,11 +94,16 @@ public sealed class SqlPhotoService
             var holderId = Convert.ToInt32(reader.GetValue(0));
             var bytes = (byte[])reader.GetValue(1);
             if (bytes.Length > 0)
+            {
                 _cache[holderId] = bytes;
+                loaded++;
+            }
         }
 
         foreach (var holderId in holderIds)
             _cache.TryAdd(holderId, Array.Empty<byte>());
+
+        Log?.Invoke($"Photo rows loaded: {loaded}; requested holders={holderIds.Count}.");
     }
 
     private static async Task<PhotoSchema?> DiscoverSchemaAsync(SqlConnection connection, CancellationToken cancellationToken)
