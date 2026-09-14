@@ -54,6 +54,7 @@ public sealed class SqlService
                 h.FFIRSTNAME,
                 h.FMIDDLENAME,
                 r.FCARDNUM,
+                r.FSAHOLDER1,
                 e.FINITOBJNAME,
                 e.FNUMEVTYPE,
                 e.FSEK0,
@@ -68,10 +69,13 @@ public sealed class SqlService
             ORDER BY e.FREALTIME DESC, e.FREGISTERTIME DESC;
             """;
 
-        return await ExecuteEventsQueryAsync(sql, command =>
+        var result = await ExecuteEventsQueryAsync(sql, command =>
         {
             command.Parameters.Add("@Limit", SqlDbType.Int).Value = Math.Max(1, limit);
         }, cancellationToken);
+
+        await AttachEmployeePhotosAsync(result, cancellationToken);
+        return result;
     }
 
     public async Task<IReadOnlyList<EventRecord>> GetWorkTimeEventsAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default)
@@ -86,6 +90,7 @@ public sealed class SqlService
                 h.FFIRSTNAME,
                 h.FMIDDLENAME,
                 r.FCARDNUM,
+                r.FSAHOLDER1,
                 e.FINITOBJNAME,
                 e.FNUMEVTYPE,
                 e.FSEK0,
@@ -109,7 +114,56 @@ public sealed class SqlService
         }, cancellationToken);
     }
 
-    private async Task<IReadOnlyList<EventRecord>> ExecuteEventsQueryAsync(string sql, Action<SqlCommand> configureCommand, CancellationToken cancellationToken)
+    private async Task AttachEmployeePhotosAsync(List<EventRecord> events, CancellationToken cancellationToken)
+    {
+        var holderIds = events
+            .Select(x => x.HolderId)
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList();
+
+        if (holderIds.Count == 0)
+            return;
+
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        // Keep well below SQL Server's 2100-parameter limit.
+        foreach (var batch in holderIds.Chunk(1000))
+        {
+            var parameterNames = batch.Select((_, index) => $"@Holder{index}").ToArray();
+            var sql = $"""
+                SELECT FID1, FOWNSG
+                FROM dbo.TAPCCARDHOLDER
+                WHERE FID1 IN ({string.Join(", ", parameterNames)});
+                """;
+
+            await using var command = new SqlCommand(sql, connection);
+            for (var i = 0; i < batch.Length; i++)
+                command.Parameters.Add(parameterNames[i], SqlDbType.Int).Value = batch[i];
+
+            var photos = new Dictionary<int, byte[]>();
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (reader.IsDBNull(1))
+                    continue;
+
+                var bytes = (byte[])reader.GetValue(1);
+                if (bytes.Length > 0)
+                    photos[reader.GetInt32(0)] = bytes;
+            }
+
+            foreach (var item in events)
+            {
+                if (photos.TryGetValue(item.HolderId, out var bytes))
+                    item.PhotoBytes = bytes;
+            }
+        }
+    }
+
+    private async Task<List<EventRecord>> ExecuteEventsQueryAsync(string sql, Action<SqlCommand> configureCommand, CancellationToken cancellationToken)
     {
         var result = new List<EventRecord>();
 
@@ -123,7 +177,7 @@ public sealed class SqlService
 
         while (await reader.ReadAsync(cancellationToken))
         {
-            var objectName = reader.IsDBNull(6) ? "" : reader.GetString(6);
+            var objectName = reader.IsDBNull(7) ? "" : reader.GetString(7);
 
             result.Add(new EventRecord
             {
@@ -131,13 +185,14 @@ public sealed class SqlService
                 RegisterTime = reader.IsDBNull(1) ? DateTime.MinValue : reader.GetDateTime(1),
                 FullName = BuildFullName(reader.IsDBNull(2) ? "" : reader.GetString(2), reader.IsDBNull(3) ? "" : reader.GetString(3), reader.IsDBNull(4) ? "" : reader.GetString(4)),
                 CardNumber = reader.IsDBNull(5) ? "" : Convert.ToString(reader.GetValue(5)) ?? "",
+                HolderId = reader.IsDBNull(6) ? 0 : Convert.ToInt32(reader.GetValue(6)),
                 Location = ResolveLocation(objectName),
                 Direction = ResolveDirection(objectName),
                 ReaderName = ResolveReaderName(objectName),
                 RawObjectName = objectName,
-                EventType = reader.IsDBNull(7) ? 0 : Convert.ToInt32(reader.GetValue(7)),
-                SekId0 = reader.IsDBNull(8) ? 0 : Convert.ToInt32(reader.GetValue(8)),
-                SekId1 = reader.IsDBNull(9) ? 0 : Convert.ToInt32(reader.GetValue(9))
+                EventType = reader.IsDBNull(8) ? 0 : Convert.ToInt32(reader.GetValue(8)),
+                SekId0 = reader.IsDBNull(9) ? 0 : Convert.ToInt32(reader.GetValue(9)),
+                SekId1 = reader.IsDBNull(10) ? 0 : Convert.ToInt32(reader.GetValue(10))
             });
         }
 
